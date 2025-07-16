@@ -21,8 +21,7 @@ go.work
 .env
 
 # Application binary
-meraki-routes-backup
-meraki-routes-backup-*
+meraki-info
 
 # Output files
 routes.*

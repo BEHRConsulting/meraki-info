@@ -2,6 +2,11 @@
 
 This project is a Golang application that collects Meraki network information.
 
+## AI Generated (mostly) 
+- This was an experiment using Github's Copilot in agent mode and Claude Sonnet 4 AI model.
+- I kept tweeking the prompts to get the functions I needed.
+- The prompts I used the generate this app are on the bottom of the file meraki-info-prompts.md.
+
 ## Features
 
 - **Secure Authentication**: Supports both API Key and OAuth2 authentication methods

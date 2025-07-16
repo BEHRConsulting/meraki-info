@@ -129,21 +129,33 @@ func TestClient_getOrganizationNetworks(t *testing.T) {
 func TestClient_getNetworkRoutes(t *testing.T) {
 	// Create a test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/networks/net123/appliance/staticRoutes" {
-			t.Errorf("Expected path /networks/net123/appliance/staticRoutes, got %s", r.URL.Path)
+		switch r.URL.Path {
+		case "/networks/net123/appliance/staticRoutes":
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`[
+				{
+					"id": "route1",
+					"name": "Test Route",
+					"subnet": "192.168.1.0/24",
+					"gatewayIp": "192.168.1.1",
+					"gatewayVlanId": 100,
+					"enabled": true
+				}
+			]`))
+		case "/networks/net123/appliance/vpn/siteToSiteVpn":
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{
+				"subnets": [
+					{
+						"localSubnet": "10.0.0.0/8",
+						"useVpn": true
+					}
+				]
+			}`))
+		default:
+			t.Errorf("Unexpected path: %s", r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
 		}
-
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`[
-			{
-				"id": "route1",
-				"name": "Test Route",
-				"subnet": "192.168.1.0/24",
-				"gatewayIp": "192.168.1.1",
-				"gatewayVlanId": 100,
-				"enabled": true
-			}
-		]`))
 	}))
 	defer server.Close()
 
@@ -158,16 +170,22 @@ func TestClient_getNetworkRoutes(t *testing.T) {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	if len(routes) != 1 {
-		t.Errorf("Expected 1 route, got %d", len(routes))
+	if len(routes) != 2 {
+		t.Errorf("Expected 2 routes, got %d", len(routes))
 	}
 
+	// Check static route
 	if routes[0].ID != "route1" {
 		t.Errorf("Expected route ID 'route1', got '%s'", routes[0].ID)
 	}
 
 	if routes[0].Subnet != "192.168.1.0/24" {
 		t.Errorf("Expected subnet '192.168.1.0/24', got '%s'", routes[0].Subnet)
+	}
+
+	// Check VPN route
+	if routes[1].Subnet != "10.0.0.0/8" {
+		t.Errorf("Expected VPN subnet '10.0.0.0/8', got '%s'", routes[1].Subnet)
 	}
 }
 
@@ -362,6 +380,16 @@ func TestClient_GetAllNetworkRoutes(t *testing.T) {
 					"enabled": true
 				}
 			]`))
+		case "/networks/net1/appliance/vpn/siteToSiteVpn":
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{
+				"subnets": [
+					{
+						"localSubnet": "10.1.0.0/16",
+						"useVpn": true
+					}
+				]
+			}`))
 		case "/networks/net2/appliance/staticRoutes":
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`[
@@ -373,6 +401,16 @@ func TestClient_GetAllNetworkRoutes(t *testing.T) {
 					"enabled": true
 				}
 			]`))
+		case "/networks/net2/appliance/vpn/siteToSiteVpn":
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{
+				"subnets": [
+					{
+						"localSubnet": "10.2.0.0/16",
+						"useVpn": true
+					}
+				]
+			}`))
 		default:
 			t.Errorf("Unexpected path: %s", r.URL.Path)
 			w.WriteHeader(http.StatusNotFound)
@@ -399,8 +437,8 @@ func TestClient_GetAllNetworkRoutes(t *testing.T) {
 	if allNetworkRoutes[0].Network.ID != "net1" {
 		t.Errorf("Expected network ID 'net1', got '%s'", allNetworkRoutes[0].Network.ID)
 	}
-	if len(allNetworkRoutes[0].Routes) != 1 {
-		t.Errorf("Expected 1 route for net1, got %d", len(allNetworkRoutes[0].Routes))
+	if len(allNetworkRoutes[0].Routes) != 2 {
+		t.Errorf("Expected 2 routes for net1, got %d", len(allNetworkRoutes[0].Routes))
 	}
 	if allNetworkRoutes[0].Routes[0].ID != "route1" {
 		t.Errorf("Expected route ID 'route1', got '%s'", allNetworkRoutes[0].Routes[0].ID)
@@ -410,8 +448,8 @@ func TestClient_GetAllNetworkRoutes(t *testing.T) {
 	if allNetworkRoutes[1].Network.ID != "net2" {
 		t.Errorf("Expected network ID 'net2', got '%s'", allNetworkRoutes[1].Network.ID)
 	}
-	if len(allNetworkRoutes[1].Routes) != 1 {
-		t.Errorf("Expected 1 route for net2, got %d", len(allNetworkRoutes[1].Routes))
+	if len(allNetworkRoutes[1].Routes) != 2 {
+		t.Errorf("Expected 2 routes for net2, got %d", len(allNetworkRoutes[1].Routes))
 	}
 	if allNetworkRoutes[1].Routes[0].ID != "route2" {
 		t.Errorf("Expected route ID 'route2', got '%s'", allNetworkRoutes[1].Routes[0].ID)

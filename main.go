@@ -95,7 +95,8 @@ func backupSingleNetworkRoutes(client *meraki.Client, cfg *config.Config) error 
 
 	// Determine output filename
 	outputFile := cfg.OutputFile
-	if outputFile == "" || outputFile == "-" {
+	switch {
+	case outputFile == "" || outputFile == "-":
 		// Send to stdout when not provided or explicitly set to "-"
 		outputWriter := output.NewWriter(cfg.OutputType)
 		if err := outputWriter.WriteTo(routes, os.Stdout); err != nil {
@@ -103,7 +104,7 @@ func backupSingleNetworkRoutes(client *meraki.Client, cfg *config.Config) error 
 		}
 		slog.Info("Route tables sent to stdout", "route_count", len(routes))
 		return nil
-	} else if outputFile == "default" {
+	case outputFile == "default":
 		// Generate default filename for route tables
 		defaultFile, err := generateDefaultRouteTablesFilename(client, cfg.Organization, cfg.Network, cfg.OutputType)
 		if err != nil {
@@ -134,7 +135,8 @@ func backupSingleNetworkLicenses(client *meraki.Client, cfg *config.Config) erro
 
 	// Determine output filename
 	outputFile := cfg.OutputFile
-	if outputFile == "" || outputFile == "-" {
+	switch {
+	case outputFile == "" || outputFile == "-":
 		// Send to stdout when not provided or explicitly set to "-"
 		outputWriter := output.NewWriter(cfg.OutputType)
 		if err := outputWriter.WriteTo(licenses, os.Stdout); err != nil {
@@ -142,7 +144,7 @@ func backupSingleNetworkLicenses(client *meraki.Client, cfg *config.Config) erro
 		}
 		slog.Info("Licenses sent to stdout", "license_count", len(licenses))
 		return nil
-	} else if outputFile == "default" {
+	case outputFile == "default":
 		// Generate default filename for licenses
 		defaultFile, err := generateDefaultLicensesFilename(client, cfg.Organization, cfg.Network, cfg.OutputType)
 		if err != nil {

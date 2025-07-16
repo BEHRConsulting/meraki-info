@@ -224,8 +224,35 @@ func (c *Client) getOrganizationNetworks(organizationID string) ([]Network, erro
 	return networks, nil
 }
 
-// getNetworkRoutes fetches routes for a specific network
+// getNetworkRoutes fetches all routes for a specific network from multiple sources
 func (c *Client) getNetworkRoutes(networkID string) ([]Route, error) {
+	var allRoutes []Route
+
+	// Fetch static routes from appliance
+	staticRoutes, err := c.getNetworkStaticRoutes(networkID)
+	if err != nil {
+		slog.Warn("Failed to fetch static routes", "network_id", networkID, "error", err)
+		// Don't return error, continue with other route types
+	} else {
+		allRoutes = append(allRoutes, staticRoutes...)
+		slog.Debug("Fetched static routes", "network_id", networkID, "count", len(staticRoutes))
+	}
+
+	// Fetch VPN routes if available
+	vpnRoutes, err := c.getNetworkVPNRoutes(networkID)
+	if err != nil {
+		slog.Debug("No VPN routes or error fetching VPN routes", "network_id", networkID, "error", err)
+		// VPN routes might not be available for all networks, don't treat as error
+	} else {
+		allRoutes = append(allRoutes, vpnRoutes...)
+		slog.Debug("Fetched VPN routes", "network_id", networkID, "count", len(vpnRoutes))
+	}
+
+	return allRoutes, nil
+}
+
+// getNetworkStaticRoutes fetches static routes for a specific network
+func (c *Client) getNetworkStaticRoutes(networkID string) ([]Route, error) {
 	endpoint := fmt.Sprintf("/networks/%s/appliance/staticRoutes", networkID)
 
 	resp, err := c.makeRequest("GET", endpoint)
@@ -236,7 +263,54 @@ func (c *Client) getNetworkRoutes(networkID string) ([]Route, error) {
 
 	var routes []Route
 	if err := json.NewDecoder(resp.Body).Decode(&routes); err != nil {
-		return nil, fmt.Errorf("failed to decode routes response: %w", err)
+		return nil, fmt.Errorf("failed to decode static routes response: %w", err)
+	}
+
+	// Mark these as static routes
+	for i := range routes {
+		if routes[i].Name == "" {
+			routes[i].Name = fmt.Sprintf("Static Route %d", i+1)
+		}
+	}
+
+	return routes, nil
+}
+
+// getNetworkVPNRoutes fetches VPN routes for a specific network
+func (c *Client) getNetworkVPNRoutes(networkID string) ([]Route, error) {
+	// Try to fetch site-to-site VPN routes
+	endpoint := fmt.Sprintf("/networks/%s/appliance/vpn/siteToSiteVpn", networkID)
+
+	resp, err := c.makeRequest("GET", endpoint)
+	if err != nil {
+		// VPN might not be configured, return empty slice
+		return []Route{}, nil
+	}
+	defer resp.Body.Close()
+
+	var vpnConfig struct {
+		Mode    string `json:"mode"`
+		Subnets []struct {
+			LocalSubnet string `json:"localSubnet"`
+			UseVpn      bool   `json:"useVpn"`
+		} `json:"subnets"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&vpnConfig); err != nil {
+		return []Route{}, nil // Not an error, just no VPN routes
+	}
+
+	var routes []Route
+	// Parse VPN subnets regardless of mode
+	for i, subnet := range vpnConfig.Subnets {
+		if subnet.UseVpn {
+			routes = append(routes, Route{
+				ID:      fmt.Sprintf("vpn-%d", i),
+				Name:    fmt.Sprintf("VPN Route %d", i+1),
+				Subnet:  subnet.LocalSubnet,
+				Enabled: true, // VPN routes are enabled if useVpn is true
+			})
+		}
 	}
 
 	return routes, nil
