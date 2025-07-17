@@ -1,69 +1,92 @@
-# Meraki-Info Application Requirements
+# Meraki Info CLI Application Requirements
 
-## Overview
-Application name: **meraki-info**
+## Project Overview
+This project is a Golang application that collects Meraki network information through the Meraki Dashboard API.
 
-**Description:** This project is a Golang application that collects Meraki network information.
-
-## Authentication
-- The app should authenticate with Meraki cloud
-- Use production authentication methods and libraries for Meraki, such as OAuth2, to ensure secure access to the Meraki account
-
-## Command Line Parameters
-
-### Required Parameters
-One of the following parameters is required:
-- `--licenses` - Output license information
-- `--route-tables` - Output route tables  
-- `--access` - Show available organizations and networks
+## Core Requirements
 
 ### Authentication
-- `--apikey` - Meraki API key (can also be set with env variable `MERAKI_APIKEY`)
+- **Primary Authentication**: Use production authentication methods and libraries for Meraki, such as OAuth2, to ensure secure access to the Meraki account
+- **API Key Support**: Support API key authentication as an alternative method
+- **Environment Variables**: Support authentication configuration through environment variables
 
-### Organization & Network Selection
-- `--org` - Organization ID or name (can also be set with env variable `MERAKI_ORG`)
-  - Allow organization to be specified by name or id
-  - This is not case sensitive
-- `--network` - Network ID or name (can also be set with env variable `MERAKI_NET`)
-  - Allow network to be specified by name or id  
-  - This is not case sensitive
+### Commands
+The application must support the following commands (displayed in alphabetical order in usage):
 
-### Output Options
-- `--output` - Output file path
-  - If `--output` is "-" or not provided → send to stdout
-  - If `--output` is "default" → use default filenames
-  - Otherwise → use specified filename
-- `--format` - Output format: text, xml, json, csv (default: text)
+1. **`access`**: Print a nice text output listing the organizations and networks available for the API key
+   - Allow filtering by `--org` parameter
+   
+2. **`alerting`**: Output all alerting devices across the specified scope
 
-### Special Modes
-- `--access` - Print a nice text output listing the organizations and networks available for the API key
-  - Allow filtering by `--org` parameter
-- `--all` - Generate files for all networks in the specified organization
-  - If `--org` is not specified, process all organizations
+3. **`down`**: Output all devices that are down/offline
 
-### Logging
-- `--loglevel` - Set logging level: debug, info, error (default: error)
+4. **`licenses`**: Output license information for the specified scope
 
-## Default Filenames
-- **Route tables:** `RouteTables-<org>-<network>-<RFC3339 date time>.txt`
-- **Licenses:** `Licenses-<org>-<network>-<RFC3339 date time>.txt`
+5. **`route-tables`**: Output route tables from security appliances, switches, and switch stacks
 
-## Development Requirements
+### Command Line Options
 
-### Code Quality
-- Create unit tests
-- There should be no panics
-- Handle errors gracefully with clear messages for:
+#### Required Parameters
+- **Command**: One of the above commands is required; if not provided, display usage
+
+#### Optional Parameters
+- **`--org`**: Specify organization by name or ID (case insensitive)
+  - Environment variable: `MERAKI_ORG`
+  
+- **`--network`**: Specify network by name or ID (case insensitive)
+  - Environment variable: `MERAKI_NET`
+  - If not provided, defaults to `--all` behavior
+  
+- **`--apikey`**: API key for authentication
+  - Environment variable: `MERAKI_APIKEY`
+  - Usage display: Do not show default; if set, show "env MERAKI_APIKEY is set"
+  
+- **`--output`**: Output file name
+  - Default: stdout
+  - Special value: "-" for stdout
+  
+- **`--format`**: Output format (text, xml, json, csv)
+  - Default: text
+  
+- **`--all`**: Generate consolidated output
+  - If `--org` not specified: process all organizations
+  - If `--network` not specified: process all networks
+  - Consolidated output must include: org name, org ID, network name, network ID
+  
+- **`--loglevel`**: Set logging level (debug, info, error)
+  - Default: error
+
+### Technical Requirements
+
+#### Error Handling
+- **No Panics**: Application must handle all errors gracefully
+- **Clear Error Messages**: Provide meaningful error messages for:
   - Authentication failures
-  - Network issues  
+  - Network issues
   - File system errors
-- Code should be well-structured and modular for maintainability
-- Include comments and documentation
+- **Error Output**: Send all error output to stderr
 
-### Performance
-- Be efficient with API calls to avoid hitting rate limits
-- Minimize the number of requests made
+#### Performance & Efficiency
+- **API Rate Limiting**: Minimize API calls to avoid hitting Meraki rate limits
+- **Efficient Processing**: Optimize API call patterns and data processing
 
-### Architecture
-- Well-structured and modular design
-- Easy to maintain and extend in the future
+#### Code Quality
+- **Modular Structure**: Well-structured, modular code for maintainability and extensibility
+- **Documentation**: Include comprehensive comments and documentation
+- **Unit Tests**: Create comprehensive unit tests for all components
+- **Go Best Practices**: Follow Go idioms and best practices
+
+#### Output Requirements
+- **Consolidated Format**: When using `--all`, provide consolidated output with organizational context
+- **Multiple Formats**: Support text, XML, JSON, and CSV output formats
+- **Flexible Output**: Support both file output and stdout
+
+### Usage Display Requirements
+- Commands must be listed in alphabetical order
+- Sanitize all examples in documentation
+- Clear parameter descriptions and defaults
+
+## Additional Notes
+- The application should be production-ready with proper error handling
+- Consider implementing retry logic for API calls
+- Ensure secure handling of API keys and authentication tokens
