@@ -162,6 +162,18 @@ func TestClient_getNetworkRoutes(t *testing.T) {
 					"subnet": "172.16.1.0/24"
 				}
 			]`))
+		case "/networks/net123/switch/routing/interfaces":
+			// Return empty array for switch routing interfaces (no switch Layer 3 interfaces)
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`[]`))
+		case "/networks/net123/switch/routing/staticRoutes":
+			// Return empty array for switch static routes
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`[]`))
+		case "/networks/net123/switch/stacks":
+			// Return empty array for switch stacks
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`[]`))
 		default:
 			t.Errorf("Unexpected path: %s", r.URL.Path)
 			w.WriteHeader(http.StatusNotFound)
@@ -446,6 +458,26 @@ func TestClient_GetAllNetworkRoutes(t *testing.T) {
 					"subnet": "172.16.2.0/24"
 				}
 			]`))
+		// Switch routing endpoints for net1
+		case "/networks/net1/switch/routing/interfaces":
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`[]`))
+		case "/networks/net1/switch/routing/staticRoutes":
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`[]`))
+		case "/networks/net1/switch/stacks":
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`[]`))
+		// Switch routing endpoints for net2
+		case "/networks/net2/switch/routing/interfaces":
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`[]`))
+		case "/networks/net2/switch/routing/staticRoutes":
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`[]`))
+		case "/networks/net2/switch/stacks":
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`[]`))
 		default:
 			t.Errorf("Unexpected path: %s", r.URL.Path)
 			w.WriteHeader(http.StatusNotFound)

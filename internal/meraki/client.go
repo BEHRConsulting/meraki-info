@@ -53,6 +53,34 @@ type NetworkLicenses struct {
 	Licenses []License `json:"licenses"`
 }
 
+// Device represents a Meraki device
+type Device struct {
+	Serial         string   `json:"serial"`
+	Name           string   `json:"name,omitempty"`
+	Model          string   `json:"model"`
+	NetworkID      string   `json:"networkId"`
+	MAC            string   `json:"mac,omitempty"`
+	Status         string   `json:"status"`
+	LastReportedAt string   `json:"lastReportedAt,omitempty"`
+	ProductType    string   `json:"productType,omitempty"`
+	Tags           []string `json:"tags,omitempty"`
+	Address        string   `json:"address,omitempty"`
+	Lat            float64  `json:"lat,omitempty"`
+	Lng            float64  `json:"lng,omitempty"`
+	Notes          string   `json:"notes,omitempty"`
+	BeaconIdParams struct {
+		UUID  string `json:"uuid,omitempty"`
+		Major int    `json:"major,omitempty"`
+		Minor int    `json:"minor,omitempty"`
+	} `json:"beaconIdParams,omitempty"`
+}
+
+// NetworkDevices represents devices for a specific network
+type NetworkDevices struct {
+	Network Network  `json:"network"`
+	Devices []Device `json:"devices"`
+}
+
 // Client represents a Meraki API client
 type Client struct {
 	httpClient *http.Client
@@ -137,7 +165,7 @@ func (c *Client) makeRequest(method, endpoint string) (*http.Response, error) {
 
 // GetRoutes fetches all routes for the specified organization and network
 func (c *Client) GetRoutes(organizationID, networkIdentifier string) ([]Route, error) {
-	var routes []Route
+	routes := make([]Route, 0) // Initialize as empty slice instead of nil slice
 
 	// If network is specified, resolve it to an ID and get routes for that specific network
 	if networkIdentifier != "" {
@@ -884,4 +912,141 @@ func (c *Client) GetAllNetworkLicenses(organizationID string) ([]NetworkLicenses
 	}
 
 	return allNetworkLicenses, nil
+}
+
+// GetDevices fetches device information for the specified organization and network
+func (c *Client) GetDevices(organizationID, networkIdentifier string) ([]Device, error) {
+	devices := make([]Device, 0) // Initialize as empty slice instead of nil slice
+
+	// If network is specified, get devices for that specific network
+	if networkIdentifier != "" {
+		// Resolve network name/ID to actual network ID
+		networkID, err := c.ResolveNetworkID(organizationID, networkIdentifier)
+		if err != nil {
+			return nil, err
+		}
+
+		networkDevices, err := c.getNetworkDevices(networkID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get devices for network %s: %w", networkID, err)
+		}
+		devices = append(devices, networkDevices...)
+		slog.Info("Retrieved devices from specific network", "network_id", networkID, "device_count", len(networkDevices))
+	} else {
+		// Get all networks in the organization and fetch devices for each
+		networks, err := c.getOrganizationNetworks(organizationID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get networks for organization %s: %w", organizationID, err)
+		}
+
+		slog.Info("Found networks", "count", len(networks))
+
+		for _, network := range networks {
+			networkDevices, err := c.getNetworkDevices(network.ID)
+			if err != nil {
+				slog.Warn("Failed to get devices for network", "network_id", network.ID, "network_name", network.Name, "error", err)
+				continue
+			}
+			devices = append(devices, networkDevices...)
+		}
+	}
+
+	slog.Info("Retrieved devices", "count", len(devices))
+	return devices, nil
+}
+
+// GetDownDevices fetches devices that are currently down/offline
+func (c *Client) GetDownDevices(organizationID, networkIdentifier string) ([]Device, error) {
+	// Get all devices first
+	allDevices, err := c.GetDevices(organizationID, networkIdentifier)
+	if err != nil {
+		return nil, err
+	}
+
+	// Filter for devices that are down/offline
+	downDevices := make([]Device, 0) // Initialize as empty slice instead of nil slice
+	for _, device := range allDevices {
+		// Check if device is offline/down
+		// Meraki API typically uses "offline", "alerting", or similar statuses for down devices
+		if isDeviceDown(device.Status) {
+			downDevices = append(downDevices, device)
+		}
+	}
+
+	slog.Info("Filtered down devices", "total_devices", len(allDevices), "down_devices", len(downDevices))
+	return downDevices, nil
+}
+
+// getNetworkDevices fetches all devices in a specific network
+func (c *Client) getNetworkDevices(networkID string) ([]Device, error) {
+	endpoint := fmt.Sprintf("/networks/%s/devices", networkID)
+
+	resp, err := c.makeRequest("GET", endpoint)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var devices []Device
+	if err := json.NewDecoder(resp.Body).Decode(&devices); err != nil {
+		return nil, fmt.Errorf("failed to decode devices response: %w", err)
+	}
+
+	return devices, nil
+}
+
+// GetAllNetworkDevices fetches devices for all networks in an organization
+func (c *Client) GetAllNetworkDevices(organizationID string) ([]NetworkDevices, error) {
+	// Get all networks in the organization
+	networks, err := c.getOrganizationNetworks(organizationID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get networks for organization %s: %w", organizationID, err)
+	}
+
+	slog.Info("Found networks for device backup", "count", len(networks))
+
+	var allNetworkDevices []NetworkDevices
+
+	for _, network := range networks {
+		networkDevices, err := c.getNetworkDevices(network.ID)
+		if err != nil {
+			slog.Warn("Failed to get devices for network", "network_id", network.ID, "network_name", network.Name, "error", err)
+			// Still include the network with empty devices for completeness
+			allNetworkDevices = append(allNetworkDevices, NetworkDevices{
+				Network: network,
+				Devices: []Device{},
+			})
+			continue
+		}
+
+		allNetworkDevices = append(allNetworkDevices, NetworkDevices{
+			Network: network,
+			Devices: networkDevices,
+		})
+
+		slog.Info("Retrieved devices for network", "network_id", network.ID, "network_name", network.Name, "device_count", len(networkDevices))
+	}
+
+	return allNetworkDevices, nil
+}
+
+// isDeviceDown determines if a device is considered down based on its status
+func isDeviceDown(status string) bool {
+	downStatuses := []string{
+		"offline",
+		"alerting",
+		"dormant",
+		"down",
+		"unreachable",
+		"disconnected",
+	}
+
+	statusLower := strings.ToLower(status)
+	for _, downStatus := range downStatuses {
+		if statusLower == downStatus {
+			return true
+		}
+	}
+
+	return false
 }

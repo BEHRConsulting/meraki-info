@@ -81,6 +81,24 @@ func main() {
 		}
 		return
 	}
+
+	// If --down flag is provided, handle down devices output
+	if cfg.ShowDownDevices {
+		if cfg.BackupAll {
+			err := backupAllNetworkDownDevices(client, cfg)
+			if err != nil {
+				slog.Error("Failed to backup all network down devices", "error", err)
+				os.Exit(1)
+			}
+		} else {
+			err := backupSingleNetworkDownDevices(client, cfg)
+			if err != nil {
+				slog.Error("Failed to backup down devices", "error", err)
+				os.Exit(1)
+			}
+		}
+		return
+	}
 }
 
 // backupSingleNetworkRoutes backs up routes for a single network
@@ -163,6 +181,57 @@ func backupSingleNetworkLicenses(client *meraki.Client, cfg *config.Config) erro
 	return nil
 }
 
+// backupSingleNetworkDownDevices backs up down devices for a single network
+func backupSingleNetworkDownDevices(client *meraki.Client, cfg *config.Config) error {
+	// Fetch down devices for single network
+	downDevices, err := client.GetDownDevices(cfg.Organization, cfg.Network)
+	if err != nil {
+		return fmt.Errorf("failed to fetch down devices: %w", err)
+	}
+
+	slog.Info("Retrieved down devices", "count", len(downDevices))
+
+	// Determine output filename
+	outputFile := cfg.OutputFile
+	switch {
+	case outputFile == "" || outputFile == "-":
+		// Send to stdout when not provided or explicitly set to "-"
+		outputWriter := output.NewWriter(cfg.OutputType)
+		if err := outputWriter.WriteTo(downDevices, os.Stdout); err != nil {
+			return fmt.Errorf("failed to write output to stdout: %w", err)
+		}
+		slog.Info("Down devices sent to stdout", "device_count", len(downDevices))
+		return nil
+	case outputFile == "default":
+		// Generate default filename for down devices
+		defaultFile, err := generateDefaultDownDevicesFilename(client, cfg.Organization, cfg.Network, cfg.OutputType)
+		if err != nil {
+			return fmt.Errorf("failed to generate default filename: %w", err)
+		}
+		outputFile = defaultFile
+	}
+
+	// Output to file
+	outputWriter := output.NewWriter(cfg.OutputType)
+	if err := outputWriter.WriteToFile(downDevices, outputFile); err != nil {
+		return fmt.Errorf("failed to write output: %w", err)
+	}
+	slog.Info("Down devices backup completed successfully", "output_file", outputFile)
+
+	return nil
+}
+
+// backupAllNetworkDownDevices backs up down devices for all networks in the organization(s) to separate files
+func backupAllNetworkDownDevices(client *meraki.Client, cfg *config.Config) error {
+	if cfg.Organization != "" {
+		// Backup all networks in a specific organization
+		return backupOrganizationNetworkDownDevices(cfg, client, cfg.Organization)
+	} else {
+		// Backup all networks in all organizations
+		return backupAllOrganizationDownDevices(cfg, client)
+	}
+}
+
 // backupAllNetworkRoutes backs up routes for all networks in the organization(s) to separate files
 func backupAllNetworkRoutes(client *meraki.Client, cfg *config.Config) error {
 	if cfg.Organization != "" {
@@ -228,6 +297,11 @@ func generateDefaultRouteTablesFilename(client *meraki.Client, organizationID, n
 // generateDefaultLicensesFilename generates a default filename for licenses
 func generateDefaultLicensesFilename(client *meraki.Client, organizationID, networkIdentifier, outputType string) (string, error) {
 	return generateFilenameWithPrefix(client, "Licenses", organizationID, networkIdentifier, outputType)
+}
+
+// generateDefaultDownDevicesFilename generates a default filename for down devices
+func generateDefaultDownDevicesFilename(client *meraki.Client, organizationID, networkIdentifier, outputType string) (string, error) {
+	return generateFilenameWithPrefix(client, "Down", organizationID, networkIdentifier, outputType)
 }
 
 // generateFilenameWithPrefix generates a filename with a given prefix in the format: <prefix>-<org>-<network>-<RFC3339 datetime>.ext
@@ -515,6 +589,58 @@ func backupAllOrganizationLicenses(cfg *config.Config, client *meraki.Client) er
 		err := backupOrganizationNetworkLicenses(cfg, client, org.ID)
 		if err != nil {
 			slog.Error("Failed to backup licenses for organization", "org", org.Name, "error", err)
+			continue
+		}
+	}
+
+	return nil
+}
+
+// backupOrganizationNetworkDownDevices backs up down devices for all networks in an organization
+func backupOrganizationNetworkDownDevices(cfg *config.Config, client *meraki.Client, organizationID string) error {
+	networks, err := client.GetOrganizationNetworks(organizationID)
+	if err != nil {
+		return fmt.Errorf("error getting organization networks: %w", err)
+	}
+
+	for _, network := range networks {
+		// Create a copy of config for this network
+		networkCfg := *cfg
+		networkCfg.Organization = organizationID
+		networkCfg.Network = network.ID
+
+		// Generate filename for this network
+		if networkCfg.OutputFile == "" || networkCfg.OutputFile == "default" {
+			outputFile, err := generateDefaultDownDevicesFilename(client, organizationID, network.ID, cfg.OutputType)
+			if err != nil {
+				slog.Error("Failed to generate filename for network", "network", network.Name, "error", err)
+				continue
+			}
+			networkCfg.OutputFile = outputFile
+		}
+
+		err := backupSingleNetworkDownDevices(client, &networkCfg)
+		if err != nil {
+			slog.Error("Failed to backup down devices for network", "network", network.Name, "error", err)
+			continue
+		}
+	}
+
+	return nil
+}
+
+// backupAllOrganizationDownDevices backs up down devices for all organizations
+func backupAllOrganizationDownDevices(cfg *config.Config, client *meraki.Client) error {
+	organizations, err := client.GetOrganizations()
+	if err != nil {
+		return fmt.Errorf("error getting organizations: %w", err)
+	}
+
+	for _, org := range organizations {
+		slog.Info("Processing organization for down devices", "org", org.Name, "id", org.ID)
+		err := backupOrganizationNetworkDownDevices(cfg, client, org.ID)
+		if err != nil {
+			slog.Error("Failed to backup down devices for organization", "org", org.Name, "error", err)
 			continue
 		}
 	}

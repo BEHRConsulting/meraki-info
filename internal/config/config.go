@@ -19,6 +19,7 @@ type Config struct {
 	BackupAll       bool
 	ShowRouteTables bool
 	ShowLicenses    bool
+	ShowDownDevices bool
 }
 
 // ParseConfig parses command line flags and environment variables
@@ -47,6 +48,7 @@ func parseConfigWithValidation() (*Config, error) {
 	flag.BoolVar(&cfg.BackupAll, "all", false, "Backup for all networks. If --org specified, backup all networks in that organization. If --org not specified, backup all networks in all organizations.")
 	flag.BoolVar(&cfg.ShowRouteTables, "route-tables", false, "Output route tables (default filename: RouteTables-<org>-<network>-<RFC3339 datetime>.txt)")
 	flag.BoolVar(&cfg.ShowLicenses, "licenses", false, "Output license information (default filename: Licenses-<org>-<network>-<RFC3339 datetime>.txt)")
+	flag.BoolVar(&cfg.ShowDownDevices, "down", false, "Output all devices that are down/offline (default filename: Down-<org>-<network>-<RFC3339 datetime>.txt)")
 
 	flag.Parse()
 
@@ -66,11 +68,14 @@ func parseConfigWithValidation() (*Config, error) {
 	if cfg.ShowLicenses {
 		actionCount++
 	}
+	if cfg.ShowDownDevices {
+		actionCount++
+	}
 	if actionCount == 0 {
-		return nil, fmt.Errorf("one of the parameters --access, --route-tables, or --licenses is required")
+		return nil, fmt.Errorf("one of the parameters --access, --route-tables, --licenses, or --down is required")
 	}
 	if actionCount > 1 {
-		return nil, fmt.Errorf("only one of --access, --route-tables, or --licenses can be specified at a time")
+		return nil, fmt.Errorf("only one of --access, --route-tables, --licenses, or --down can be specified at a time")
 	}
 
 	// If showing access or using --all without --org, organization is not required for some cases

@@ -71,6 +71,29 @@ type LicenseXML struct {
 	DurationInDays    int    `xml:"durationInDays,omitempty"`
 }
 
+// DevicesXML represents devices in XML format
+type DevicesXML struct {
+	XMLName xml.Name    `xml:"devices"`
+	Devices []DeviceXML `xml:"device"`
+}
+
+// DeviceXML represents a single device in XML format
+type DeviceXML struct {
+	Serial         string   `xml:"serial"`
+	Name           string   `xml:"name,omitempty"`
+	Model          string   `xml:"model"`
+	NetworkID      string   `xml:"networkId"`
+	MAC            string   `xml:"mac,omitempty"`
+	Status         string   `xml:"status"`
+	LastReportedAt string   `xml:"lastReportedAt,omitempty"`
+	ProductType    string   `xml:"productType,omitempty"`
+	Tags           []string `xml:"tags,omitempty"`
+	Address        string   `xml:"address,omitempty"`
+	Lat            float64  `xml:"lat,omitempty"`
+	Lng            float64  `xml:"lng,omitempty"`
+	Notes          string   `xml:"notes,omitempty"`
+}
+
 // NewWriter creates a new writer based on the output type
 func NewWriter(outputType string) Writer {
 	switch strings.ToLower(outputType) {
@@ -103,6 +126,8 @@ func (w *TextWriter) WriteTo(data interface{}, writer io.Writer) error {
 		return w.writeRoutes(v, writer)
 	case []meraki.License:
 		return w.writeLicenses(v, writer)
+	case []meraki.Device:
+		return w.writeDevices(v, writer)
 	default:
 		return fmt.Errorf("unsupported data type: %T", data)
 	}
@@ -160,6 +185,47 @@ func (w *TextWriter) writeLicenses(licenses []meraki.License, writer io.Writer) 
 	return nil
 }
 
+// writeDevices writes devices to an io.Writer in text format
+func (w *TextWriter) writeDevices(devices []meraki.Device, writer io.Writer) error {
+	// Write header
+	fmt.Fprintf(writer, "Meraki Down Devices\n")
+	fmt.Fprintf(writer, "===================\n\n")
+	fmt.Fprintf(writer, "Total Down Devices: %d\n\n", len(devices))
+
+	if len(devices) == 0 {
+		fmt.Fprintf(writer, "No devices are currently down.\n")
+		return nil
+	}
+
+	// Write devices
+	for i, device := range devices {
+		fmt.Fprintf(writer, "Device %d:\n", i+1)
+		fmt.Fprintf(writer, "  Serial: %s\n", device.Serial)
+		fmt.Fprintf(writer, "  Name: %s\n", device.Name)
+		fmt.Fprintf(writer, "  Model: %s\n", device.Model)
+		fmt.Fprintf(writer, "  Network ID: %s\n", device.NetworkID)
+		fmt.Fprintf(writer, "  MAC: %s\n", device.MAC)
+		fmt.Fprintf(writer, "  Status: %s\n", device.Status)
+		fmt.Fprintf(writer, "  Last Reported: %s\n", device.LastReportedAt)
+		fmt.Fprintf(writer, "  Product Type: %s\n", device.ProductType)
+		if len(device.Tags) > 0 {
+			fmt.Fprintf(writer, "  Tags: %v\n", device.Tags)
+		}
+		if device.Address != "" {
+			fmt.Fprintf(writer, "  Address: %s\n", device.Address)
+		}
+		if device.Lat != 0 || device.Lng != 0 {
+			fmt.Fprintf(writer, "  Location: %.6f, %.6f\n", device.Lat, device.Lng)
+		}
+		if device.Notes != "" {
+			fmt.Fprintf(writer, "  Notes: %s\n", device.Notes)
+		}
+		fmt.Fprintf(writer, "\n")
+	}
+
+	return nil
+}
+
 // WriteToFile writes data to a file in JSON format
 func (w *JSONWriter) WriteToFile(data interface{}, filename string) error {
 	file, err := os.Create(filename)
@@ -201,6 +267,8 @@ func (w *XMLWriter) WriteTo(data interface{}, writer io.Writer) error {
 		return w.writeRoutesXML(v, writer)
 	case []meraki.License:
 		return w.writeLicensesXML(v, writer)
+	case []meraki.Device:
+		return w.writeDevicesXML(v, writer)
 	default:
 		return fmt.Errorf("unsupported data type: %T", data)
 	}
@@ -283,6 +351,43 @@ func (w *XMLWriter) writeLicensesXML(licenses []meraki.License, writer io.Writer
 	return nil
 }
 
+// writeDevicesXML writes devices to an io.Writer in XML format
+func (w *XMLWriter) writeDevicesXML(devices []meraki.Device, writer io.Writer) error {
+	// Convert devices to XML-compatible format
+	xmlDevices := make([]DeviceXML, len(devices))
+	for i, device := range devices {
+		xmlDevices[i] = DeviceXML{
+			Serial:         device.Serial,
+			Name:           device.Name,
+			Model:          device.Model,
+			NetworkID:      device.NetworkID,
+			MAC:            device.MAC,
+			Status:         device.Status,
+			LastReportedAt: device.LastReportedAt,
+			ProductType:    device.ProductType,
+			Tags:           device.Tags,
+			Address:        device.Address,
+			Lat:            device.Lat,
+			Lng:            device.Lng,
+			Notes:          device.Notes,
+		}
+	}
+
+	devicesXML := DevicesXML{Devices: xmlDevices}
+
+	encoder := xml.NewEncoder(writer)
+	encoder.Indent("", "  ")
+
+	// Write XML header
+	fmt.Fprint(writer, xml.Header)
+
+	if err := encoder.Encode(devicesXML); err != nil {
+		return fmt.Errorf("failed to encode XML: %w", err)
+	}
+
+	return nil
+}
+
 // WriteToFile writes data to a file in CSV format
 func (w *CSVWriter) WriteToFile(data interface{}, filename string) error {
 	file, err := os.Create(filename)
@@ -301,6 +406,8 @@ func (w *CSVWriter) WriteTo(data interface{}, writer io.Writer) error {
 		return w.writeRoutesCSV(v, writer)
 	case []meraki.License:
 		return w.writeLicensesCSV(v, writer)
+	case []meraki.Device:
+		return w.writeDevicesCSV(v, writer)
 	default:
 		return fmt.Errorf("unsupported data type: %T", data)
 	}
@@ -363,6 +470,48 @@ func (w *CSVWriter) writeLicensesCSV(licenses []meraki.License, writer io.Writer
 			fmt.Sprintf("%d", license.DurationInDays),
 			license.ExpirationDate,
 			fmt.Sprintf("%t", license.PermanentlyQueued),
+		}
+		if err := csvWriter.Write(record); err != nil {
+			return fmt.Errorf("failed to write CSV record: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// writeDevicesCSV writes devices to an io.Writer in CSV format
+func (w *CSVWriter) writeDevicesCSV(devices []meraki.Device, writer io.Writer) error {
+	csvWriter := csv.NewWriter(writer)
+	defer csvWriter.Flush()
+
+	// Write header
+	header := []string{"Serial", "Name", "Model", "Network ID", "MAC", "Status", "Last Reported At", "Product Type", "Tags", "Address", "Latitude", "Longitude", "Notes"}
+	if err := csvWriter.Write(header); err != nil {
+		return fmt.Errorf("failed to write CSV header: %w", err)
+	}
+
+	// Write devices
+	for _, device := range devices {
+		// Convert tags slice to comma-separated string
+		tagsStr := ""
+		if len(device.Tags) > 0 {
+			tagsStr = strings.Join(device.Tags, ";")
+		}
+
+		record := []string{
+			device.Serial,
+			device.Name,
+			device.Model,
+			device.NetworkID,
+			device.MAC,
+			device.Status,
+			device.LastReportedAt,
+			device.ProductType,
+			tagsStr,
+			device.Address,
+			fmt.Sprintf("%.6f", device.Lat),
+			fmt.Sprintf("%.6f", device.Lng),
+			device.Notes,
 		}
 		if err := csvWriter.Write(record); err != nil {
 			return fmt.Errorf("failed to write CSV record: %w", err)
