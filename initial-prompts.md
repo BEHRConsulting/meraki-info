@@ -30,7 +30,7 @@ If the option --output is provided, use this for the name of output file. If --o
 
 If the option --format is provided it can be text, xml, json, csv for the output file. Text is the default format.
 
-If the option --all is provided generate files for all networks in the specified organization. If the option --org is not specified, process all organizations. If option --net is not specified, process all networks. Consolidated output should include org name, org ID, network name, and network ID as required.
+If the option --all is provided generate a consolidated output. If the option --org is not specified, process all organizations. If option --net is not specified, process all networks. Consolidated output should include org name, org ID, network name, and network ID as required.
 
 If the option --loglevel is provided, the app should set the logging level accordingly. The default logging level should be "error", but it can be set to "debug" or "info" based on the user's preference.
 
@@ -47,4 +47,9 @@ The code should be well-structured and modular, making it easy to maintain and e
 The app should include comments and documentation to explain the functionality and usage.
 
 Sanitize all examples
+
+<!-- need to do -->
+Generate a pretty REQUIREMENTS.md
+
+In usage, list commands in alpha order
 ```

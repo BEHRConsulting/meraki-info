@@ -292,10 +292,18 @@ func infoAllNetworkAlertingDevicesConsolidated(client *meraki.Client, cfg *confi
 
 	slog.Info("Collected all alerting devices", "totalDevices", len(allAlertingDevices))
 
-	// Create appropriate writer and output to stdout
+	// Output to stdout or file
 	writer := output.NewWriter(cfg.OutputType)
-	if err := writer.WriteTo(allAlertingDevices, os.Stdout); err != nil {
-		return fmt.Errorf("failed to write consolidated alerting device info: %w", err)
+	if cfg.OutputFile == "" || cfg.OutputFile == "-" {
+		if err := writer.WriteTo(allAlertingDevices, os.Stdout); err != nil {
+			return fmt.Errorf("failed to write output to stdout: %w", err)
+		}
+		slog.Info("Alerting devices info sent to stdout", "total_devices", len(allAlertingDevices))
+	} else {
+		if err := writer.WriteToFile(allAlertingDevices, cfg.OutputFile); err != nil {
+			return fmt.Errorf("failed to write output to file: %w", err)
+		}
+		slog.Info("Alerting devices info written to file", "total_devices", len(allAlertingDevices), "file", cfg.OutputFile)
 	}
 
 	return nil
@@ -325,10 +333,18 @@ func infoAllNetworkLicensesConsolidated(client *meraki.Client, cfg *config.Confi
 
 	slog.Info("Collected all licenses", "totalLicenses", len(allLicenses))
 
-	// Create appropriate writer and output to stdout
+	// Output to stdout or file
 	writer := output.NewWriter(cfg.OutputType)
-	if err := writer.WriteTo(allLicenses, os.Stdout); err != nil {
-		return fmt.Errorf("failed to write consolidated license info: %w", err)
+	if cfg.OutputFile == "" || cfg.OutputFile == "-" {
+		if err := writer.WriteTo(allLicenses, os.Stdout); err != nil {
+			return fmt.Errorf("failed to write output to stdout: %w", err)
+		}
+		slog.Info("License info sent to stdout", "total_licenses", len(allLicenses))
+	} else {
+		if err := writer.WriteToFile(allLicenses, cfg.OutputFile); err != nil {
+			return fmt.Errorf("failed to write output to file: %w", err)
+		}
+		slog.Info("License info written to file", "total_licenses", len(allLicenses), "file", cfg.OutputFile)
 	}
 
 	return nil
@@ -367,10 +383,18 @@ func infoAllNetworkDownDevicesConsolidated(client *meraki.Client, cfg *config.Co
 
 	slog.Info("Collected all down devices", "totalDevices", len(allDownDevices))
 
-	// Create appropriate writer and output to stdout
+	// Output to stdout or file
 	writer := output.NewWriter(cfg.OutputType)
-	if err := writer.WriteTo(allDownDevices, os.Stdout); err != nil {
-		return fmt.Errorf("failed to write consolidated down device info: %w", err)
+	if cfg.OutputFile == "" || cfg.OutputFile == "-" {
+		if err := writer.WriteTo(allDownDevices, os.Stdout); err != nil {
+			return fmt.Errorf("failed to write output to stdout: %w", err)
+		}
+		slog.Info("Down devices info sent to stdout", "total_devices", len(allDownDevices))
+	} else {
+		if err := writer.WriteToFile(allDownDevices, cfg.OutputFile); err != nil {
+			return fmt.Errorf("failed to write output to file: %w", err)
+		}
+		slog.Info("Down devices info written to file", "total_devices", len(allDownDevices), "file", cfg.OutputFile)
 	}
 
 	return nil
@@ -395,19 +419,8 @@ func infoAllNetworkDownDevices(client *meraki.Client, cfg *config.Config) error 
 
 // infoAllNetworkRoutes collects info for routes for all networks in the organization(s)
 func infoAllNetworkRoutes(client *meraki.Client, cfg *config.Config) error {
-	// Check if output should go to stdout (consolidated format)
-	if cfg.OutputFile == "" || cfg.OutputFile == "-" {
-		return infoAllNetworkRoutesConsolidated(client, cfg)
-	}
-
-	// Otherwise use separate files for each network
-	if cfg.Organization != "" {
-		// Get info for all networks in a specific organization
-		return infoOrganizationNetworkRoutes(cfg, client, cfg.Organization)
-	} else {
-		// Get info for all networks in all organizations
-		return infoAllOrganizationRoutes(cfg, client)
-	}
+	// When using --all, always use consolidated output
+	return infoAllNetworkRoutesConsolidated(client, cfg)
 }
 
 // infoAllNetworkRoutesConsolidated collects info for routes for all networks and outputs to stdout in consolidated format
@@ -433,13 +446,19 @@ func infoAllNetworkRoutesConsolidated(client *meraki.Client, cfg *config.Config)
 			}
 		}
 
-		// Output to stdout
+		// Output to stdout or file
 		outputWriter := output.NewWriter(cfg.OutputType)
-		if err := outputWriter.WriteTo(allRoutes, os.Stdout); err != nil {
-			return fmt.Errorf("failed to write output to stdout: %w", err)
+		if cfg.OutputFile == "" || cfg.OutputFile == "-" {
+			if err := outputWriter.WriteTo(allRoutes, os.Stdout); err != nil {
+				return fmt.Errorf("failed to write output to stdout: %w", err)
+			}
+			slog.Info("Route tables info sent to stdout", "total_routes", len(allRoutes))
+		} else {
+			if err := outputWriter.WriteToFile(allRoutes, cfg.OutputFile); err != nil {
+				return fmt.Errorf("failed to write output to file: %w", err)
+			}
+			slog.Info("Route tables info written to file", "total_routes", len(allRoutes), "file", cfg.OutputFile)
 		}
-
-		slog.Info("Route tables info sent to stdout", "total_routes", len(allRoutes))
 		return nil
 	} else {
 		// Get routes for all networks in all organizations
@@ -468,13 +487,19 @@ func infoAllNetworkRoutesConsolidated(client *meraki.Client, cfg *config.Config)
 			}
 		}
 
-		// Output to stdout
+		// Output to stdout or file
 		outputWriter := output.NewWriter(cfg.OutputType)
-		if err := outputWriter.WriteTo(allRoutes, os.Stdout); err != nil {
-			return fmt.Errorf("failed to write output to stdout: %w", err)
+		if cfg.OutputFile == "" || cfg.OutputFile == "-" {
+			if err := outputWriter.WriteTo(allRoutes, os.Stdout); err != nil {
+				return fmt.Errorf("failed to write output to stdout: %w", err)
+			}
+			slog.Info("Route tables info sent to stdout", "total_routes", len(allRoutes))
+		} else {
+			if err := outputWriter.WriteToFile(allRoutes, cfg.OutputFile); err != nil {
+				return fmt.Errorf("failed to write output to file: %w", err)
+			}
+			slog.Info("Route tables info written to file", "total_routes", len(allRoutes), "file", cfg.OutputFile)
 		}
-
-		slog.Info("Route tables info sent to stdout", "total_routes", len(allRoutes))
 		return nil
 	}
 }
