@@ -34,13 +34,7 @@ func ParseConfig() *Config {
 // printUsage prints custom usage information
 func printUsage() {
 	fmt.Fprintf(os.Stderr, "Usage: %s [OPTIONS] COMMAND\n\n", os.Args[0])
-	fmt.Fprintf(os.Stderr, "COMMANDS:\n")
-	fmt.Fprintf(os.Stderr, "  access        Show available organizations and networks for the API key\n")
-	fmt.Fprintf(os.Stderr, "  alerting      Output all devices that are alerting\n")
-	fmt.Fprintf(os.Stderr, "  down          Output all devices that are down/offline\n")
-	fmt.Fprintf(os.Stderr, "  licenses      Output license information\n")
-	fmt.Fprintf(os.Stderr, "  route-tables  Output route tables\n")
-	fmt.Fprintf(os.Stderr, "\nOPTIONS:\n")
+	fmt.Fprintf(os.Stderr, "OPTIONS:\n")
 
 	// Manually print each flag, with special handling for apikey
 	fmt.Fprintf(os.Stderr, "  -all\n    \tGet info for all networks. If -org specified, get info for all networks in that organization. If -org not specified, get info for all networks in all organizations.\n")
@@ -57,6 +51,13 @@ func printUsage() {
 	fmt.Fprintf(os.Stderr, "  -network string\n    \tMeraki network ID or name\n")
 	fmt.Fprintf(os.Stderr, "  -org string\n    \tMeraki organization ID or name\n")
 	fmt.Fprintf(os.Stderr, "  -output string\n    \tOutput file path. Use '-' or omit for stdout\n")
+
+	fmt.Fprintf(os.Stderr, "\nCOMMANDS:\n")
+	fmt.Fprintf(os.Stderr, "  access        Show available organizations and networks for the API key\n")
+	fmt.Fprintf(os.Stderr, "  alerting      Output all devices that are alerting\n")
+	fmt.Fprintf(os.Stderr, "  down          Output all devices that are down/offline\n")
+	fmt.Fprintf(os.Stderr, "  licenses      Output license information\n")
+	fmt.Fprintf(os.Stderr, "  route-tables  Output route tables\n")
 }
 
 // parseConfigWithValidation parses config and returns validation errors (for testing)
@@ -81,13 +82,13 @@ func parseConfigWithValidation() (*Config, error) {
 
 	flag.Parse()
 
-	// Get the command from positional arguments
+	// Get the command from positional arguments (after options)
 	args := flag.Args()
 	if len(args) == 0 {
-		return nil, fmt.Errorf("one of the arguments access, route-tables, licenses, down, or alerting is required")
+		return nil, fmt.Errorf("command is required. Must be one of: access, alerting, down, licenses, route-tables")
 	}
 	if len(args) > 1 {
-		return nil, fmt.Errorf("only one command argument is allowed, got: %s", strings.Join(args, ", "))
+		return nil, fmt.Errorf("only one command is allowed, got: %s", strings.Join(args, ", "))
 	}
 
 	command := strings.ToLower(args[0])
@@ -95,7 +96,7 @@ func parseConfigWithValidation() (*Config, error) {
 	case "access", "route-tables", "licenses", "down", "alerting":
 		cfg.Command = command
 	default:
-		return nil, fmt.Errorf("invalid command '%s'. Must be one of: access, route-tables, licenses, down, alerting", args[0])
+		return nil, fmt.Errorf("invalid command '%s'. Must be one of: access, alerting, down, licenses, route-tables", args[0])
 	}
 
 	// Validate required fields
