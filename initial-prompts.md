@@ -22,7 +22,7 @@ If the option --org is provided use this as the organization. Can also be set wi
 
 If the option --network is provided use this as the network. Can also be set with env variable MERAKI_NET. Allow network to be specified by name or id. This is not case sensitive. If --network is not provided, set --all
 
-if the option --apikey is provided, use this as the api key. Can also be set with env variable MERAKI_APIKEY
+if the option --apikey is provided, use this as the api key. Can also be set with env variable MERAKI_APIKEY. Do not display a default for --apikey in usage, if set show "env MERAKI_APIKET is set".
 
 If the option --output is provided, use this for the name of output file. If --output is "-" or not provided then send to stdout.
 
@@ -30,7 +30,7 @@ If the option --output is provided, use this for the name of output file. If --o
 
 If the option --format is provided it can be text, xml, json, csv for the output file. Text is the default format.
 
-If the option --all is provided generate files for all networks in the specified organization. If the parameter --org is not specified, process all organizations
+If the option --all is provided generate files for all networks in the specified organization. If the option --org is not specified, process all organizations. If option --net is not specified, process all networks. Consolidated output should include org and network as required.
 
 If the option --loglevel is provided, the app should set the logging level accordingly. The default logging level should be "error", but it can be set to "debug" or "info" based on the user's preference.
 
@@ -38,7 +38,7 @@ Create unit tests.
 
 There should be no panics.
 
-The app should handle errors gracefully, providing clear messages if something goes wrong, such as authentication failures, network issues, or file system errors.
+The app should handle errors gracefully, providing clear messages if something goes wrong, such as authentication failures, network issues, or file system errors. Error output should be sent to stderr.
 
 The app should be efficient in terms of API calls to Dropbox, minimizing the number of requests made to avoid hitting rate limits.
 

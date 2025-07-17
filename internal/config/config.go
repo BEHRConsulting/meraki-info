@@ -41,17 +41,17 @@ func printUsage() {
 	fmt.Fprintf(os.Stderr, "  down          Output all devices that are down/offline\n")
 	fmt.Fprintf(os.Stderr, "  alerting      Output all devices that are alerting\n")
 	fmt.Fprintf(os.Stderr, "\nOPTIONS:\n")
-	
+
 	// Manually print each flag, with special handling for apikey
 	fmt.Fprintf(os.Stderr, "  -all\n    \tGet info for all networks. If -org specified, get info for all networks in that organization. If -org not specified, get info for all networks in all organizations.\n")
-	
+
 	// Special handling for apikey
 	apikeyDescription := "Meraki API key"
 	if os.Getenv("MERAKI_APIKEY") != "" {
 		apikeyDescription += " (env MERAKI_APIKEY is set)"
 	}
 	fmt.Fprintf(os.Stderr, "  -apikey string\n    \t%s\n", apikeyDescription)
-	
+
 	fmt.Fprintf(os.Stderr, "  -format string\n    \tOutput format: text, xml, json, csv (default \"text\")\n")
 	fmt.Fprintf(os.Stderr, "  -loglevel string\n    \tLog level: debug, info, error (default \"error\")\n")
 	fmt.Fprintf(os.Stderr, "  -network string\n    \tMeraki network ID or name\n")
@@ -66,11 +66,11 @@ func parseConfigWithValidation() (*Config, error) {
 	// Define command line flags (options only, not commands)
 	flag.StringVar(&cfg.Organization, "org", os.Getenv("MERAKI_ORG"), "Meraki organization ID or name")
 	flag.StringVar(&cfg.Network, "network", os.Getenv("MERAKI_NET"), "Meraki network ID or name")
-	
+
 	// Special handling for apikey to not show default in usage
 	apikeyDefault := os.Getenv("MERAKI_APIKEY")
 	flag.StringVar(&cfg.APIKey, "apikey", apikeyDefault, "Meraki API key")
-	
+
 	flag.StringVar(&cfg.OutputFile, "output", "", "Output file path. Use '-' or omit for stdout")
 	flag.StringVar(&cfg.OutputType, "format", "text", "Output format: text, xml, json, csv")
 	flag.StringVar(&cfg.LogLevel, "loglevel", "error", "Log level: debug, info, error")
@@ -103,7 +103,7 @@ func parseConfigWithValidation() (*Config, error) {
 		return nil, fmt.Errorf("API key is required. Use -apikey flag or MERAKI_APIKEY environment variable")
 	}
 
-	// If showing access or using --all, organization is not required  
+	// If showing access or using --all, organization is not required
 	// For other commands without --all, organization is required
 	if cfg.Command != "access" && !cfg.InfoAll && cfg.Organization == "" {
 		return nil, fmt.Errorf("organization is required when not using --all or access command. Use --org flag or MERAKI_ORG environment variable")

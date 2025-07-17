@@ -242,7 +242,7 @@ func infoAllNetworkRoutes(client *meraki.Client, cfg *config.Config) error {
 	if cfg.OutputFile == "" || cfg.OutputFile == "-" {
 		return infoAllNetworkRoutesConsolidated(client, cfg)
 	}
-	
+
 	// Otherwise use separate files for each network
 	if cfg.Organization != "" {
 		// Get info for all networks in a specific organization
@@ -281,7 +281,7 @@ func infoAllNetworkRoutesConsolidated(client *meraki.Client, cfg *config.Config)
 		if err := outputWriter.WriteTo(allRoutes, os.Stdout); err != nil {
 			return fmt.Errorf("failed to write output to stdout: %w", err)
 		}
-		
+
 		slog.Info("Route tables info sent to stdout", "total_routes", len(allRoutes))
 		return nil
 	} else {
@@ -316,7 +316,7 @@ func infoAllNetworkRoutesConsolidated(client *meraki.Client, cfg *config.Config)
 		if err := outputWriter.WriteTo(allRoutes, os.Stdout); err != nil {
 			return fmt.Errorf("failed to write output to stdout: %w", err)
 		}
-		
+
 		slog.Info("Route tables info sent to stdout", "total_routes", len(allRoutes))
 		return nil
 	}
@@ -460,12 +460,12 @@ func showAccessInformation(client *meraki.Client, orgFilter string) {
 	// Get organizations
 	orgs, err := client.GetOrganizations()
 	if err != nil {
-		fmt.Printf("❌ Error fetching organizations: %v\n", err)
+		fmt.Fprintf(os.Stderr, "❌ Error fetching organizations: %v\n", err)
 		os.Exit(1)
 	}
 
 	if len(orgs) == 0 {
-		fmt.Println("⚠️  No organizations found. Please check your API key permissions.")
+		fmt.Fprintln(os.Stderr, "⚠️  No organizations found. Please check your API key permissions.")
 		return
 	}
 
@@ -478,7 +478,7 @@ func showAccessInformation(client *meraki.Client, orgFilter string) {
 			}
 		}
 		if len(filteredOrgs) == 0 {
-			fmt.Printf("⚠️  No organization found matching '%s'\n", orgFilter)
+			fmt.Fprintf(os.Stderr, "⚠️  No organization found matching '%s'\n", orgFilter)
 			fmt.Println("\n📋 Available organizations:")
 			for i, org := range orgs {
 				fmt.Printf("   %d. %s (ID: %s)\n", i+1, org.Name, org.ID)
@@ -506,7 +506,7 @@ func showAccessInformation(client *meraki.Client, orgFilter string) {
 		// Get networks for this organization
 		networks, err := client.GetOrganizationNetworks(org.ID)
 		if err != nil {
-			fmt.Printf("  ⚠️  Error fetching networks for %s: %v\n", org.Name, err)
+			fmt.Fprintf(os.Stderr, "  ⚠️  Error fetching networks for %s: %v\n", org.Name, err)
 			continue
 		}
 

@@ -22,7 +22,7 @@ func InitLogger(level string) {
 	}
 
 	// Create a new logger with JSON output for structured logging
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
 		Level: logLevel,
 	}))
 

@@ -39,7 +39,7 @@ type RoutesXML struct {
 
 // RoutesWithNetworkXML represents routes with network information in XML format
 type RoutesWithNetworkXML struct {
-	XMLName xml.Name             `xml:"routes"`
+	XMLName xml.Name              `xml:"routes"`
 	Routes  []RouteWithNetworkXML `xml:"route"`
 }
 
