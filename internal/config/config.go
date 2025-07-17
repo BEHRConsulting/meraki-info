@@ -103,9 +103,10 @@ func parseConfigWithValidation() (*Config, error) {
 		return nil, fmt.Errorf("API key is required. Use -apikey flag or MERAKI_APIKEY environment variable")
 	}
 
-	// If showing access or using -all without -org, organization is not required for some cases
+	// If showing access or using --all, organization is not required  
+	// For other commands without --all, organization is required
 	if cfg.Command != "access" && !cfg.InfoAll && cfg.Organization == "" {
-		return nil, fmt.Errorf("organization is required. Use -org flag or MERAKI_ORG environment variable")
+		return nil, fmt.Errorf("organization is required when not using --all or access command. Use --org flag or MERAKI_ORG environment variable")
 	}
 
 	// If using -all, network should not be specified

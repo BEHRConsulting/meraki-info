@@ -75,6 +75,14 @@ type Device struct {
 	} `json:"beaconIdParams,omitempty"`
 }
 
+// RouteWithNetwork extends the Route struct to include network and organization information
+type RouteWithNetwork struct {
+	Route
+	NetworkID    string `json:"network_id" xml:"NetworkID" csv:"network_id"`
+	NetworkName  string `json:"network_name" xml:"NetworkName" csv:"network_name"`
+	Organization string `json:"organization" xml:"Organization" csv:"organization"`
+}
+
 // DeviceStatus represents the status information for a device from the organization statuses endpoint
 type DeviceStatus struct {
 	Serial string `json:"serial"`

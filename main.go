@@ -236,14 +236,89 @@ func infoAllNetworkDownDevices(client *meraki.Client, cfg *config.Config) error 
 	}
 }
 
-// infoAllNetworkRoutes collects info for routes for all networks in the organization(s) to separate files
+// infoAllNetworkRoutes collects info for routes for all networks in the organization(s)
 func infoAllNetworkRoutes(client *meraki.Client, cfg *config.Config) error {
+	// Check if output should go to stdout (consolidated format)
+	if cfg.OutputFile == "" || cfg.OutputFile == "-" {
+		return infoAllNetworkRoutesConsolidated(client, cfg)
+	}
+	
+	// Otherwise use separate files for each network
 	if cfg.Organization != "" {
 		// Get info for all networks in a specific organization
 		return infoOrganizationNetworkRoutes(cfg, client, cfg.Organization)
 	} else {
 		// Get info for all networks in all organizations
 		return infoAllOrganizationRoutes(cfg, client)
+	}
+}
+
+// infoAllNetworkRoutesConsolidated collects info for routes for all networks and outputs to stdout in consolidated format
+func infoAllNetworkRoutesConsolidated(client *meraki.Client, cfg *config.Config) error {
+	if cfg.Organization != "" {
+		// Get routes for all networks in a specific organization
+		networkRoutes, err := client.GetAllNetworkRoutes(cfg.Organization)
+		if err != nil {
+			return fmt.Errorf("failed to fetch network routes: %w", err)
+		}
+
+		// Create consolidated output with network information
+		allRoutes := make([]meraki.RouteWithNetwork, 0)
+		for _, nr := range networkRoutes {
+			orgName := cfg.Organization // Could be resolved to name if needed
+			for _, route := range nr.Routes {
+				allRoutes = append(allRoutes, meraki.RouteWithNetwork{
+					Route:        route,
+					NetworkID:    nr.Network.ID,
+					NetworkName:  nr.Network.Name,
+					Organization: orgName,
+				})
+			}
+		}
+
+		// Output to stdout
+		outputWriter := output.NewWriter(cfg.OutputType)
+		if err := outputWriter.WriteTo(allRoutes, os.Stdout); err != nil {
+			return fmt.Errorf("failed to write output to stdout: %w", err)
+		}
+		
+		slog.Info("Route tables info sent to stdout", "total_routes", len(allRoutes))
+		return nil
+	} else {
+		// Get routes for all networks in all organizations
+		organizations, err := client.GetOrganizations()
+		if err != nil {
+			return fmt.Errorf("error getting organizations: %w", err)
+		}
+
+		allRoutes := make([]meraki.RouteWithNetwork, 0)
+		for _, org := range organizations {
+			networkRoutes, err := client.GetAllNetworkRoutes(org.ID)
+			if err != nil {
+				slog.Error("Failed to get routes for organization", "org", org.Name, "error", err)
+				continue
+			}
+
+			for _, nr := range networkRoutes {
+				for _, route := range nr.Routes {
+					allRoutes = append(allRoutes, meraki.RouteWithNetwork{
+						Route:        route,
+						NetworkID:    nr.Network.ID,
+						NetworkName:  nr.Network.Name,
+						Organization: org.Name,
+					})
+				}
+			}
+		}
+
+		// Output to stdout
+		outputWriter := output.NewWriter(cfg.OutputType)
+		if err := outputWriter.WriteTo(allRoutes, os.Stdout); err != nil {
+			return fmt.Errorf("failed to write output to stdout: %w", err)
+		}
+		
+		slog.Info("Route tables info sent to stdout", "total_routes", len(allRoutes))
+		return nil
 	}
 }
 

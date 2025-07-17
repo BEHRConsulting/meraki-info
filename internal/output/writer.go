@@ -37,6 +37,12 @@ type RoutesXML struct {
 	Routes  []RouteXML `xml:"route"`
 }
 
+// RoutesWithNetworkXML represents routes with network information in XML format
+type RoutesWithNetworkXML struct {
+	XMLName xml.Name             `xml:"routes"`
+	Routes  []RouteWithNetworkXML `xml:"route"`
+}
+
 // RouteXML represents a single route in XML format
 type RouteXML struct {
 	ID          string `xml:"id,omitempty"`
@@ -46,6 +52,20 @@ type RouteXML struct {
 	GatewayVlan int    `xml:"gatewayVlanId,omitempty"`
 	Enabled     bool   `xml:"enabled"`
 	FixedIP     string `xml:"fixedIpAssignments,omitempty"`
+}
+
+// RouteWithNetworkXML represents a single route with network information in XML format
+type RouteWithNetworkXML struct {
+	ID           string `xml:"id,omitempty"`
+	Name         string `xml:"name,omitempty"`
+	Subnet       string `xml:"subnet"`
+	GatewayIP    string `xml:"gatewayIp"`
+	GatewayVlan  int    `xml:"gatewayVlanId,omitempty"`
+	Enabled      bool   `xml:"enabled"`
+	FixedIP      string `xml:"fixedIpAssignments,omitempty"`
+	NetworkID    string `xml:"networkId"`
+	NetworkName  string `xml:"networkName"`
+	Organization string `xml:"organization"`
 }
 
 // LicensesXML represents licenses in XML format
@@ -124,6 +144,8 @@ func (w *TextWriter) WriteTo(data interface{}, writer io.Writer) error {
 	switch v := data.(type) {
 	case []meraki.Route:
 		return w.writeRoutes(v, writer)
+	case []meraki.RouteWithNetwork:
+		return w.writeRoutesWithNetwork(v, writer)
 	case []meraki.License:
 		return w.writeLicenses(v, writer)
 	case []meraki.Device:
@@ -143,6 +165,32 @@ func (w *TextWriter) writeRoutes(routes []meraki.Route, writer io.Writer) error 
 	// Write routes
 	for i, route := range routes {
 		fmt.Fprintf(writer, "Route %d:\n", i+1)
+		fmt.Fprintf(writer, "  ID: %s\n", route.ID)
+		fmt.Fprintf(writer, "  Name: %s\n", route.Name)
+		fmt.Fprintf(writer, "  Subnet: %s\n", route.Subnet)
+		fmt.Fprintf(writer, "  Gateway IP: %s\n", route.GatewayIP)
+		fmt.Fprintf(writer, "  Gateway VLAN: %d\n", route.GatewayVlan)
+		fmt.Fprintf(writer, "  Enabled: %t\n", route.Enabled)
+		fmt.Fprintf(writer, "  Fixed IP: %v\n", route.FixedIP)
+		fmt.Fprintf(writer, "\n")
+	}
+
+	return nil
+}
+
+// writeRoutesWithNetwork writes routes with network information to an io.Writer in text format
+func (w *TextWriter) writeRoutesWithNetwork(routes []meraki.RouteWithNetwork, writer io.Writer) error {
+	// Write header
+	fmt.Fprintf(writer, "Meraki Route Tables - Consolidated View\n")
+	fmt.Fprintf(writer, "=======================================\n\n")
+	fmt.Fprintf(writer, "Total Routes: %d\n\n", len(routes))
+
+	// Write routes
+	for i, route := range routes {
+		fmt.Fprintf(writer, "Route %d:\n", i+1)
+		fmt.Fprintf(writer, "  Organization: %s\n", route.Organization)
+		fmt.Fprintf(writer, "  Network ID: %s\n", route.NetworkID)
+		fmt.Fprintf(writer, "  Network Name: %s\n", route.NetworkName)
 		fmt.Fprintf(writer, "  ID: %s\n", route.ID)
 		fmt.Fprintf(writer, "  Name: %s\n", route.Name)
 		fmt.Fprintf(writer, "  Subnet: %s\n", route.Subnet)
@@ -265,6 +313,8 @@ func (w *XMLWriter) WriteTo(data interface{}, writer io.Writer) error {
 	switch v := data.(type) {
 	case []meraki.Route:
 		return w.writeRoutesXML(v, writer)
+	case []meraki.RouteWithNetwork:
+		return w.writeRoutesWithNetworkXML(v, writer)
 	case []meraki.License:
 		return w.writeLicensesXML(v, writer)
 	case []meraki.Device:
@@ -300,6 +350,49 @@ func (w *XMLWriter) writeRoutesXML(routes []meraki.Route, writer io.Writer) erro
 	}
 
 	routesXML := RoutesXML{Routes: xmlRoutes}
+
+	encoder := xml.NewEncoder(writer)
+	encoder.Indent("", "  ")
+
+	// Write XML header
+	fmt.Fprint(writer, xml.Header)
+
+	if err := encoder.Encode(routesXML); err != nil {
+		return fmt.Errorf("failed to encode XML: %w", err)
+	}
+
+	return nil
+}
+
+// writeRoutesWithNetworkXML writes routes with network information to an io.Writer in XML format
+func (w *XMLWriter) writeRoutesWithNetworkXML(routes []meraki.RouteWithNetwork, writer io.Writer) error {
+	// Convert routes to XML-compatible format
+	xmlRoutes := make([]RouteWithNetworkXML, len(routes))
+	for i, route := range routes {
+		fixedIPStr := ""
+		if route.FixedIP != nil {
+			// Convert interface{} to string representation
+			fixedIPBytes, err := json.Marshal(route.FixedIP)
+			if err == nil {
+				fixedIPStr = string(fixedIPBytes)
+			}
+		}
+
+		xmlRoutes[i] = RouteWithNetworkXML{
+			ID:           route.ID,
+			Name:         route.Name,
+			Subnet:       route.Subnet,
+			GatewayIP:    route.GatewayIP,
+			GatewayVlan:  route.GatewayVlan,
+			Enabled:      route.Enabled,
+			FixedIP:      fixedIPStr,
+			NetworkID:    route.NetworkID,
+			NetworkName:  route.NetworkName,
+			Organization: route.Organization,
+		}
+	}
+
+	routesXML := RoutesWithNetworkXML{Routes: xmlRoutes}
 
 	encoder := xml.NewEncoder(writer)
 	encoder.Indent("", "  ")
@@ -404,6 +497,8 @@ func (w *CSVWriter) WriteTo(data interface{}, writer io.Writer) error {
 	switch v := data.(type) {
 	case []meraki.Route:
 		return w.writeRoutesCSV(v, writer)
+	case []meraki.RouteWithNetwork:
+		return w.writeRoutesWithNetworkCSV(v, writer)
 	case []meraki.License:
 		return w.writeLicensesCSV(v, writer)
 	case []meraki.Device:
@@ -427,6 +522,39 @@ func (w *CSVWriter) writeRoutesCSV(routes []meraki.Route, writer io.Writer) erro
 	// Write routes
 	for _, route := range routes {
 		record := []string{
+			route.ID,
+			route.Name,
+			route.Subnet,
+			route.GatewayIP,
+			fmt.Sprintf("%d", route.GatewayVlan),
+			fmt.Sprintf("%t", route.Enabled),
+			fmt.Sprintf("%v", route.FixedIP),
+		}
+		if err := csvWriter.Write(record); err != nil {
+			return fmt.Errorf("failed to write CSV record: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// writeRoutesWithNetworkCSV writes routes with network information to an io.Writer in CSV format
+func (w *CSVWriter) writeRoutesWithNetworkCSV(routes []meraki.RouteWithNetwork, writer io.Writer) error {
+	csvWriter := csv.NewWriter(writer)
+	defer csvWriter.Flush()
+
+	// Write header
+	header := []string{"Organization", "Network ID", "Network Name", "ID", "Name", "Subnet", "Gateway IP", "Gateway VLAN", "Enabled", "Fixed IP"}
+	if err := csvWriter.Write(header); err != nil {
+		return fmt.Errorf("failed to write CSV header: %w", err)
+	}
+
+	// Write routes
+	for _, route := range routes {
+		record := []string{
+			route.Organization,
+			route.NetworkID,
+			route.NetworkName,
 			route.ID,
 			route.Name,
 			route.Subnet,
