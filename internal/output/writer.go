@@ -148,8 +148,12 @@ func (w *TextWriter) WriteTo(data interface{}, writer io.Writer) error {
 		return w.writeRoutesWithNetwork(v, writer)
 	case []meraki.License:
 		return w.writeLicenses(v, writer)
+	case []meraki.LicenseWithNetwork:
+		return w.writeLicensesWithNetwork(v, writer)
 	case []meraki.Device:
 		return w.writeDevices(v, writer)
+	case []meraki.DeviceWithNetwork:
+		return w.writeDevicesWithNetwork(v, writer)
 	default:
 		return fmt.Errorf("unsupported data type: %T", data)
 	}
@@ -274,6 +278,81 @@ func (w *TextWriter) writeDevices(devices []meraki.Device, writer io.Writer) err
 	return nil
 }
 
+// writeLicensesWithNetwork writes licenses with network info to an io.Writer in text format
+func (w *TextWriter) writeLicensesWithNetwork(licenses []meraki.LicenseWithNetwork, writer io.Writer) error {
+	// Write header
+	fmt.Fprintf(writer, "Meraki License Information\n")
+	fmt.Fprintf(writer, "==========================\n\n")
+	fmt.Fprintf(writer, "Total Licenses: %d\n\n", len(licenses))
+
+	// Write licenses
+	for i, licenseWithNetwork := range licenses {
+		license := licenseWithNetwork.License
+		fmt.Fprintf(writer, "License %d:\n", i+1)
+		fmt.Fprintf(writer, "  ID: %s\n", license.ID)
+		fmt.Fprintf(writer, "  Organization: %s\n", licenseWithNetwork.Organization)
+		fmt.Fprintf(writer, "  Organization ID: %s\n", license.OrganizationID)
+		fmt.Fprintf(writer, "  Device Serial: %s\n", license.DeviceSerial)
+		fmt.Fprintf(writer, "  Network ID: %s\n", license.NetworkID)
+		fmt.Fprintf(writer, "  State: %s\n", license.State)
+		fmt.Fprintf(writer, "  Edition: %s\n", license.Edition)
+		fmt.Fprintf(writer, "  Mode: %s\n", license.Mode)
+		fmt.Fprintf(writer, "  License Type: %s\n", license.LicenseType)
+		fmt.Fprintf(writer, "  License Key: %s\n", license.LicenseKey)
+		fmt.Fprintf(writer, "  Order Number: %s\n", license.OrderNumber)
+		fmt.Fprintf(writer, "  Duration (Days): %d\n", license.DurationInDays)
+		fmt.Fprintf(writer, "  Expiration Date: %s\n", license.ExpirationDate)
+		fmt.Fprintf(writer, "  Permanently Queued: %t\n", license.PermanentlyQueued)
+		fmt.Fprintf(writer, "\n")
+	}
+
+	return nil
+}
+
+// writeDevicesWithNetwork writes devices with network info to an io.Writer in text format
+func (w *TextWriter) writeDevicesWithNetwork(devices []meraki.DeviceWithNetwork, writer io.Writer) error {
+	// Write header
+	fmt.Fprintf(writer, "Meraki Devices Information\n")
+	fmt.Fprintf(writer, "==========================\n\n")
+	fmt.Fprintf(writer, "Total Devices: %d\n\n", len(devices))
+
+	if len(devices) == 0 {
+		fmt.Fprintf(writer, "No devices found.\n")
+		return nil
+	}
+
+	// Write devices
+	for i, deviceWithNetwork := range devices {
+		device := deviceWithNetwork.Device
+		fmt.Fprintf(writer, "Device %d:\n", i+1)
+		fmt.Fprintf(writer, "  Serial: %s\n", device.Serial)
+		fmt.Fprintf(writer, "  Name: %s\n", device.Name)
+		fmt.Fprintf(writer, "  Model: %s\n", device.Model)
+		fmt.Fprintf(writer, "  Organization: %s\n", deviceWithNetwork.Organization)
+		fmt.Fprintf(writer, "  Network Name: %s\n", deviceWithNetwork.NetworkName)
+		fmt.Fprintf(writer, "  Network ID: %s\n", device.NetworkID)
+		fmt.Fprintf(writer, "  MAC: %s\n", device.MAC)
+		fmt.Fprintf(writer, "  Status: %s\n", device.Status)
+		fmt.Fprintf(writer, "  Last Reported: %s\n", device.LastReportedAt)
+		fmt.Fprintf(writer, "  Product Type: %s\n", device.ProductType)
+		if len(device.Tags) > 0 {
+			fmt.Fprintf(writer, "  Tags: %v\n", device.Tags)
+		}
+		if device.Address != "" {
+			fmt.Fprintf(writer, "  Address: %s\n", device.Address)
+		}
+		if device.Lat != 0 || device.Lng != 0 {
+			fmt.Fprintf(writer, "  Location: %.6f, %.6f\n", device.Lat, device.Lng)
+		}
+		if device.Notes != "" {
+			fmt.Fprintf(writer, "  Notes: %s\n", device.Notes)
+		}
+		fmt.Fprintf(writer, "\n")
+	}
+
+	return nil
+}
+
 // WriteToFile writes data to a file in JSON format
 func (w *JSONWriter) WriteToFile(data interface{}, filename string) error {
 	file, err := os.Create(filename)
@@ -317,8 +396,18 @@ func (w *XMLWriter) WriteTo(data interface{}, writer io.Writer) error {
 		return w.writeRoutesWithNetworkXML(v, writer)
 	case []meraki.License:
 		return w.writeLicensesXML(v, writer)
+	case []meraki.LicenseWithNetwork:
+		// Use JSON encoding for consolidated structures
+		encoder := json.NewEncoder(writer)
+		encoder.SetIndent("", "  ")
+		return encoder.Encode(v)
 	case []meraki.Device:
 		return w.writeDevicesXML(v, writer)
+	case []meraki.DeviceWithNetwork:
+		// Use JSON encoding for consolidated structures
+		encoder := json.NewEncoder(writer)
+		encoder.SetIndent("", "  ")
+		return encoder.Encode(v)
 	default:
 		return fmt.Errorf("unsupported data type: %T", data)
 	}
@@ -501,8 +590,18 @@ func (w *CSVWriter) WriteTo(data interface{}, writer io.Writer) error {
 		return w.writeRoutesWithNetworkCSV(v, writer)
 	case []meraki.License:
 		return w.writeLicensesCSV(v, writer)
+	case []meraki.LicenseWithNetwork:
+		// Use JSON encoding for consolidated structures
+		encoder := json.NewEncoder(writer)
+		encoder.SetIndent("", "  ")
+		return encoder.Encode(v)
 	case []meraki.Device:
 		return w.writeDevicesCSV(v, writer)
+	case []meraki.DeviceWithNetwork:
+		// Use JSON encoding for consolidated structures
+		encoder := json.NewEncoder(writer)
+		encoder.SetIndent("", "  ")
+		return encoder.Encode(v)
 	default:
 		return fmt.Errorf("unsupported data type: %T", data)
 	}

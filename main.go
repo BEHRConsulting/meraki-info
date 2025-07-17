@@ -264,7 +264,7 @@ func infoAllNetworkAlertingDevicesConsolidated(client *meraki.Client, cfg *confi
 		return fmt.Errorf("failed to get organizations: %w", err)
 	}
 
-	var allAlertingDevices []meraki.Device
+	var allAlertingDevices []meraki.DeviceWithNetwork
 
 	for _, org := range orgs {
 		// Get all networks in the organization
@@ -284,8 +284,12 @@ func infoAllNetworkAlertingDevicesConsolidated(client *meraki.Client, cfg *confi
 
 			// Add network and organization information to each device
 			for _, device := range alertingDevices {
-				// The device already has the necessary fields, just add it to the collection
-				allAlertingDevices = append(allAlertingDevices, device)
+				deviceWithNetwork := meraki.DeviceWithNetwork{
+					Device:       device,
+					NetworkName:  network.Name,
+					Organization: org.Name,
+				}
+				allAlertingDevices = append(allAlertingDevices, deviceWithNetwork)
 			}
 		}
 	}
@@ -317,7 +321,7 @@ func infoAllNetworkLicensesConsolidated(client *meraki.Client, cfg *config.Confi
 		return fmt.Errorf("failed to get organizations: %w", err)
 	}
 
-	var allLicenses []meraki.License
+	var allLicenses []meraki.LicenseWithNetwork
 
 	for _, org := range orgs {
 		// Get licenses for this organization
@@ -327,8 +331,14 @@ func infoAllNetworkLicensesConsolidated(client *meraki.Client, cfg *config.Confi
 			continue
 		}
 
-		// Add licenses to the collection
-		allLicenses = append(allLicenses, licenses...)
+		// Add organization information to each license
+		for _, license := range licenses {
+			licenseWithNetwork := meraki.LicenseWithNetwork{
+				License:      license,
+				Organization: org.Name,
+			}
+			allLicenses = append(allLicenses, licenseWithNetwork)
+		}
 	}
 
 	slog.Info("Collected all licenses", "totalLicenses", len(allLicenses))
@@ -358,7 +368,7 @@ func infoAllNetworkDownDevicesConsolidated(client *meraki.Client, cfg *config.Co
 		return fmt.Errorf("failed to get organizations: %w", err)
 	}
 
-	var allDownDevices []meraki.Device
+	var allDownDevices []meraki.DeviceWithNetwork
 
 	for _, org := range orgs {
 		// Get all networks in the organization
@@ -376,8 +386,15 @@ func infoAllNetworkDownDevicesConsolidated(client *meraki.Client, cfg *config.Co
 				continue
 			}
 
-			// Add down devices to the collection
-			allDownDevices = append(allDownDevices, downDevices...)
+			// Add network and organization information to each device
+			for _, device := range downDevices {
+				deviceWithNetwork := meraki.DeviceWithNetwork{
+					Device:       device,
+					NetworkName:  network.Name,
+					Organization: org.Name,
+				}
+				allDownDevices = append(allDownDevices, deviceWithNetwork)
+			}
 		}
 	}
 

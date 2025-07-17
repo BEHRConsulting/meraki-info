@@ -83,6 +83,19 @@ type RouteWithNetwork struct {
 	Organization string `json:"organization" xml:"Organization" csv:"organization"`
 }
 
+// DeviceWithNetwork extends the Device struct to include network and organization information
+type DeviceWithNetwork struct {
+	Device
+	NetworkName  string `json:"network_name" xml:"NetworkName" csv:"network_name"`
+	Organization string `json:"organization" xml:"Organization" csv:"organization"`
+}
+
+// LicenseWithNetwork extends the License struct to include organization information
+type LicenseWithNetwork struct {
+	License
+	Organization string `json:"organization" xml:"Organization" csv:"organization"`
+}
+
 // DeviceStatus represents the status information for a device from the organization statuses endpoint
 type DeviceStatus struct {
 	Serial string `json:"serial"`
