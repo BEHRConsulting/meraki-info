@@ -3,6 +3,7 @@ package meraki
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -126,6 +127,15 @@ func NewClient(apiKey string) (*Client, error) {
 	// This is a simplified version using API key authentication
 	client := &http.Client{
 		Timeout: time.Second * 30,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				MinVersion: tls.VersionTLS12,
+				// Could add certificate pinning for extra security
+			},
+			MaxIdleConns:        100,
+			MaxIdleConnsPerHost: 10,
+			IdleConnTimeout:     90 * time.Second,
+		},
 	}
 
 	return &Client{

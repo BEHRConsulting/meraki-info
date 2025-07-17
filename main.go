@@ -436,8 +436,19 @@ func infoAllNetworkDownDevices(client *meraki.Client, cfg *config.Config) error 
 
 // infoAllNetworkRoutes collects info for routes for all networks in the organization(s)
 func infoAllNetworkRoutes(client *meraki.Client, cfg *config.Config) error {
-	// When using --all, always use consolidated output
-	return infoAllNetworkRoutesConsolidated(client, cfg)
+	// Check if output should go to stdout (consolidated format)
+	if cfg.OutputFile == "" || cfg.OutputFile == "-" {
+		return infoAllNetworkRoutesConsolidated(client, cfg)
+	}
+
+	// Otherwise use separate files for each network
+	if cfg.Organization != "" {
+		// Get info for all networks in a specific organization
+		return infoOrganizationNetworkRoutes(cfg, client, cfg.Organization)
+	} else {
+		// Get info for all networks in all organizations
+		return infoAllOrganizationRoutes(cfg, client)
+	}
 }
 
 // infoAllNetworkRoutesConsolidated collects info for routes for all networks and outputs to stdout in consolidated format
@@ -818,23 +829,10 @@ func infoOrganizationNetworkAlertingDevices(cfg *config.Config, client *meraki.C
 			return fmt.Errorf("no output file specified for separate file generation")
 		}
 
-		// Fetch alerting devices for this network
-		alertingDevices, err := client.GetAlertingDevices(organizationID, network.ID)
+		err := infoSingleNetworkAlertingDevices(client, &networkCfg)
 		if err != nil {
-			slog.Error("Failed to get alerting devices for network", "network", network.Name, "error", err)
+			slog.Error("Failed to collect alerting device info for network", "network", network.Name, "error", err)
 			continue
-		}
-
-		if len(alertingDevices) > 0 {
-			// Write to file only if there are alerting devices
-			outputWriter := output.NewWriter(cfg.OutputType)
-			if err := outputWriter.WriteToFile(alertingDevices, networkCfg.OutputFile); err != nil {
-				slog.Error("Failed to write alerting devices info", "network", network.Name, "error", err)
-				continue
-			}
-			slog.Info("Alerting devices info collection completed", "network", network.Name, "device_count", len(alertingDevices), "output_file", networkCfg.OutputFile)
-		} else {
-			slog.Info("No alerting devices found", "network", network.Name)
 		}
 	}
 
