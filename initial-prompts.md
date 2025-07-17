@@ -44,12 +44,13 @@ The app should be efficient in terms of API calls to Dropbox, minimizing the num
 
 The code should be well-structured and modular, making it easy to maintain and extend in the future.
 
-The app should include comments and documentation to explain the functionality and usage.
+The app should include comments and documentation to explain the functionality and usage. 
+
+In usage, list commands in alpha order.
 
 Sanitize all examples
 
 <!-- need to do -->
-Generate a pretty REQUIREMENTS.md
+Re-Generate a pretty REQUIREMENTS.md
 
-In usage, list commands in alpha order
 ```
