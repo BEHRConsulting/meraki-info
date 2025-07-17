@@ -585,16 +585,34 @@ func (c *Client) getSwitchStackStaticRoutes(networkID, stackID string) ([]Route,
 	}
 	defer resp.Body.Close()
 
-	var routes []Route
-	if err := json.NewDecoder(resp.Body).Decode(&routes); err != nil {
+	var apiRoutes []struct {
+		StaticRouteID               string `json:"staticRouteId"`
+		Name                        string `json:"name"`
+		Subnet                      string `json:"subnet"`
+		NextHopIP                   string `json:"nextHopIp"`
+		AdvertiseViaOspfEnabled     bool   `json:"advertiseViaOspfEnabled"`
+		PreferOverOspfRoutesEnabled bool   `json:"preferOverOspfRoutesEnabled"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&apiRoutes); err != nil {
 		return []Route{}, nil
 	}
 
-	// Mark these as switch stack static routes
-	for i := range routes {
-		if routes[i].Name == "" {
-			routes[i].Name = fmt.Sprintf("Stack %s Static Route %d", stackID, i+1)
+	var routes []Route
+	for _, apiRoute := range apiRoutes {
+		route := Route{
+			ID:        apiRoute.StaticRouteID,
+			Name:      apiRoute.Name,
+			Subnet:    apiRoute.Subnet,
+			GatewayIP: apiRoute.NextHopIP,
+			Enabled:   apiRoute.PreferOverOspfRoutesEnabled, // Use this as a proxy for enabled status
 		}
+
+		if route.Name == "" {
+			route.Name = fmt.Sprintf("Stack %s Static Route", stackID)
+		}
+
+		routes = append(routes, route)
 	}
 
 	return routes, nil

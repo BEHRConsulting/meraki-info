@@ -21,6 +21,8 @@ go.work
 .env
 
 # Application binary
+meraki-info.exe
+meraki-info.app
 meraki-info
 
 # Output files
