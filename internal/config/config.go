@@ -36,10 +36,10 @@ func printUsage() {
 	fmt.Fprintf(os.Stderr, "Usage: %s [OPTIONS] COMMAND\n\n", os.Args[0])
 	fmt.Fprintf(os.Stderr, "COMMANDS:\n")
 	fmt.Fprintf(os.Stderr, "  access        Show available organizations and networks for the API key\n")
-	fmt.Fprintf(os.Stderr, "  route-tables  Output route tables\n")
-	fmt.Fprintf(os.Stderr, "  licenses      Output license information\n")
-	fmt.Fprintf(os.Stderr, "  down          Output all devices that are down/offline\n")
 	fmt.Fprintf(os.Stderr, "  alerting      Output all devices that are alerting\n")
+	fmt.Fprintf(os.Stderr, "  down          Output all devices that are down/offline\n")
+	fmt.Fprintf(os.Stderr, "  licenses      Output license information\n")
+	fmt.Fprintf(os.Stderr, "  route-tables  Output route tables\n")
 	fmt.Fprintf(os.Stderr, "\nOPTIONS:\n")
 
 	// Manually print each flag, with special handling for apikey
