@@ -4,9 +4,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"regexp"
-	"strings"
-	"time"
 
 	"meraki-info/internal/config"
 	"meraki-info/internal/logger"
@@ -95,9 +92,18 @@ func main() {
 		return
 
 	case "alerting":
-		// TODO: Implement alerting functionality
-		fmt.Fprintf(os.Stderr, "Error: Alerting command is not yet implemented.\n")
-		os.Exit(1)
+		if cfg.InfoAll {
+			if err := infoAllNetworkAlertingDevices(client, cfg); err != nil {
+				slog.Error("Failed to get info for all network alerting devices", "error", err)
+				os.Exit(1)
+			}
+		} else {
+			if err := infoSingleNetworkAlertingDevices(client, cfg); err != nil {
+				slog.Error("Failed to collect alerting device info", "error", err)
+				os.Exit(1)
+			}
+		}
+		return
 
 	default:
 		fmt.Fprintf(os.Stderr, "Error: Unknown command '%s'. Use access, route-tables, licenses, down, or alerting.\n", cfg.Command)
@@ -117,8 +123,7 @@ func infoSingleNetworkRoutes(client *meraki.Client, cfg *config.Config) error {
 
 	// Determine output filename
 	outputFile := cfg.OutputFile
-	switch {
-	case outputFile == "" || outputFile == "-":
+	if outputFile == "" || outputFile == "-" {
 		// Send to stdout when not provided or explicitly set to "-"
 		outputWriter := output.NewWriter(cfg.OutputType)
 		if err := outputWriter.WriteTo(routes, os.Stdout); err != nil {
@@ -126,13 +131,6 @@ func infoSingleNetworkRoutes(client *meraki.Client, cfg *config.Config) error {
 		}
 		slog.Info("Route tables sent to stdout", "route_count", len(routes))
 		return nil
-	case outputFile == "default":
-		// Generate default filename for route tables
-		defaultFile, err := generateDefaultRouteTablesFilename(client, cfg.Organization, cfg.Network, cfg.OutputType)
-		if err != nil {
-			return fmt.Errorf("failed to generate default filename: %w", err)
-		}
-		outputFile = defaultFile
 	}
 
 	// Output to file
@@ -157,8 +155,7 @@ func infoSingleNetworkLicenses(client *meraki.Client, cfg *config.Config) error 
 
 	// Determine output filename
 	outputFile := cfg.OutputFile
-	switch {
-	case outputFile == "" || outputFile == "-":
+	if outputFile == "" || outputFile == "-" {
 		// Send to stdout when not provided or explicitly set to "-"
 		outputWriter := output.NewWriter(cfg.OutputType)
 		if err := outputWriter.WriteTo(licenses, os.Stdout); err != nil {
@@ -166,13 +163,6 @@ func infoSingleNetworkLicenses(client *meraki.Client, cfg *config.Config) error 
 		}
 		slog.Info("Licenses sent to stdout", "license_count", len(licenses))
 		return nil
-	case outputFile == "default":
-		// Generate default filename for licenses
-		defaultFile, err := generateDefaultLicensesFilename(client, cfg.Organization, cfg.Network, cfg.OutputType)
-		if err != nil {
-			return fmt.Errorf("failed to generate default filename: %w", err)
-		}
-		outputFile = defaultFile
 	}
 
 	// Output to file
@@ -197,8 +187,7 @@ func infoSingleNetworkDownDevices(client *meraki.Client, cfg *config.Config) err
 
 	// Determine output filename
 	outputFile := cfg.OutputFile
-	switch {
-	case outputFile == "" || outputFile == "-":
+	if outputFile == "" || outputFile == "-" {
 		// Send to stdout when not provided or explicitly set to "-"
 		outputWriter := output.NewWriter(cfg.OutputType)
 		if err := outputWriter.WriteTo(downDevices, os.Stdout); err != nil {
@@ -206,13 +195,6 @@ func infoSingleNetworkDownDevices(client *meraki.Client, cfg *config.Config) err
 		}
 		slog.Info("Down devices sent to stdout", "device_count", len(downDevices))
 		return nil
-	case outputFile == "default":
-		// Generate default filename for down devices
-		defaultFile, err := generateDefaultDownDevicesFilename(client, cfg.Organization, cfg.Network, cfg.OutputType)
-		if err != nil {
-			return fmt.Errorf("failed to generate default filename: %w", err)
-		}
-		outputFile = defaultFile
 	}
 
 	// Output to file
@@ -225,8 +207,183 @@ func infoSingleNetworkDownDevices(client *meraki.Client, cfg *config.Config) err
 	return nil
 }
 
-// infoAllNetworkDownDevices collects info for down devices for all networks in the organization(s) to separate files
+// infoSingleNetworkAlertingDevices retrieves and outputs alerting device information for a single network
+func infoSingleNetworkAlertingDevices(client *meraki.Client, cfg *config.Config) error {
+	// Fetch alerting devices for single network
+	alertingDevices, err := client.GetAlertingDevices(cfg.Organization, cfg.Network)
+	if err != nil {
+		return fmt.Errorf("failed to fetch alerting devices: %w", err)
+	}
+
+	slog.Info("Retrieved alerting devices", "count", len(alertingDevices))
+
+	// Determine output filename
+	outputFile := cfg.OutputFile
+	if outputFile == "" || outputFile == "-" {
+		// Send to stdout when not provided or explicitly set to "-"
+		outputWriter := output.NewWriter(cfg.OutputType)
+		if err := outputWriter.WriteTo(alertingDevices, os.Stdout); err != nil {
+			return fmt.Errorf("failed to write output to stdout: %w", err)
+		}
+		slog.Info("Alerting devices sent to stdout", "device_count", len(alertingDevices))
+		return nil
+	}
+
+	// Output to file
+	outputWriter := output.NewWriter(cfg.OutputType)
+	if err := outputWriter.WriteToFile(alertingDevices, outputFile); err != nil {
+		return fmt.Errorf("failed to write output: %w", err)
+	}
+	slog.Info("Alerting devices info collection completed successfully", "output_file", outputFile)
+
+	return nil
+}
+
+// infoAllNetworkAlertingDevices collects info for alerting devices for all networks in the organization(s) to separate files
+func infoAllNetworkAlertingDevices(client *meraki.Client, cfg *config.Config) error {
+	// Check if output should go to stdout (consolidated format)
+	if cfg.OutputFile == "" || cfg.OutputFile == "-" {
+		return infoAllNetworkAlertingDevicesConsolidated(client, cfg)
+	}
+
+	// Otherwise use separate files for each network
+	if cfg.Organization != "" {
+		// Get info for all networks in a specific organization
+		return infoOrganizationNetworkAlertingDevices(cfg, client, cfg.Organization)
+	} else {
+		// Get info for all networks in all organizations
+		return infoAllOrganizationAlertingDevices(cfg, client)
+	}
+}
+
+// infoAllNetworkAlertingDevicesConsolidated collects alerting device info for all networks and outputs in a consolidated format to stdout
+func infoAllNetworkAlertingDevicesConsolidated(client *meraki.Client, cfg *config.Config) error {
+	// Get all organizations
+	orgs, err := client.GetOrganizations()
+	if err != nil {
+		return fmt.Errorf("failed to get organizations: %w", err)
+	}
+
+	var allAlertingDevices []meraki.Device
+
+	for _, org := range orgs {
+		// Get all networks in the organization
+		networks, err := client.GetOrganizationNetworks(org.ID)
+		if err != nil {
+			slog.Error("Failed to get networks for organization", "orgID", org.ID, "orgName", org.Name, "error", err)
+			continue
+		}
+
+		for _, network := range networks {
+			// Get alerting devices for this network
+			alertingDevices, err := client.GetAlertingDevices(org.ID, network.ID)
+			if err != nil {
+				slog.Error("Failed to get alerting devices for network", "networkID", network.ID, "networkName", network.Name, "error", err)
+				continue
+			}
+
+			// Add network and organization information to each device
+			for _, device := range alertingDevices {
+				// The device already has the necessary fields, just add it to the collection
+				allAlertingDevices = append(allAlertingDevices, device)
+			}
+		}
+	}
+
+	slog.Info("Collected all alerting devices", "totalDevices", len(allAlertingDevices))
+
+	// Create appropriate writer and output to stdout
+	writer := output.NewWriter(cfg.OutputType)
+	if err := writer.WriteTo(allAlertingDevices, os.Stdout); err != nil {
+		return fmt.Errorf("failed to write consolidated alerting device info: %w", err)
+	}
+
+	return nil
+}
+
+// infoAllNetworkLicensesConsolidated collects license info for all networks and outputs in a consolidated format to stdout
+func infoAllNetworkLicensesConsolidated(client *meraki.Client, cfg *config.Config) error {
+	// Get all organizations
+	orgs, err := client.GetOrganizations()
+	if err != nil {
+		return fmt.Errorf("failed to get organizations: %w", err)
+	}
+
+	var allLicenses []meraki.License
+
+	for _, org := range orgs {
+		// Get licenses for this organization
+		licenses, err := client.GetLicenses(org.ID)
+		if err != nil {
+			slog.Error("Failed to get licenses for organization", "orgID", org.ID, "orgName", org.Name, "error", err)
+			continue
+		}
+
+		// Add licenses to the collection
+		allLicenses = append(allLicenses, licenses...)
+	}
+
+	slog.Info("Collected all licenses", "totalLicenses", len(allLicenses))
+
+	// Create appropriate writer and output to stdout
+	writer := output.NewWriter(cfg.OutputType)
+	if err := writer.WriteTo(allLicenses, os.Stdout); err != nil {
+		return fmt.Errorf("failed to write consolidated license info: %w", err)
+	}
+
+	return nil
+}
+
+// infoAllNetworkDownDevicesConsolidated collects down device info for all networks and outputs in a consolidated format to stdout
+func infoAllNetworkDownDevicesConsolidated(client *meraki.Client, cfg *config.Config) error {
+	// Get all organizations
+	orgs, err := client.GetOrganizations()
+	if err != nil {
+		return fmt.Errorf("failed to get organizations: %w", err)
+	}
+
+	var allDownDevices []meraki.Device
+
+	for _, org := range orgs {
+		// Get all networks in the organization
+		networks, err := client.GetOrganizationNetworks(org.ID)
+		if err != nil {
+			slog.Error("Failed to get networks for organization", "orgID", org.ID, "orgName", org.Name, "error", err)
+			continue
+		}
+
+		for _, network := range networks {
+			// Get down devices for this network
+			downDevices, err := client.GetDownDevices(org.ID, network.ID)
+			if err != nil {
+				slog.Error("Failed to get down devices for network", "networkID", network.ID, "networkName", network.Name, "error", err)
+				continue
+			}
+
+			// Add down devices to the collection
+			allDownDevices = append(allDownDevices, downDevices...)
+		}
+	}
+
+	slog.Info("Collected all down devices", "totalDevices", len(allDownDevices))
+
+	// Create appropriate writer and output to stdout
+	writer := output.NewWriter(cfg.OutputType)
+	if err := writer.WriteTo(allDownDevices, os.Stdout); err != nil {
+		return fmt.Errorf("failed to write consolidated down device info: %w", err)
+	}
+
+	return nil
+}
+
+// infoAllNetworkDownDevices collects info for down devices for all networks in the organization(s)
 func infoAllNetworkDownDevices(client *meraki.Client, cfg *config.Config) error {
+	// Check if output should go to stdout (consolidated format)
+	if cfg.OutputFile == "" || cfg.OutputFile == "-" {
+		return infoAllNetworkDownDevicesConsolidated(client, cfg)
+	}
+
+	// Otherwise use separate files for each network
 	if cfg.Organization != "" {
 		// Get info for all networks in a specific organization
 		return infoOrganizationNetworkDownDevices(cfg, client, cfg.Organization)
@@ -322,8 +479,14 @@ func infoAllNetworkRoutesConsolidated(client *meraki.Client, cfg *config.Config)
 	}
 }
 
-// infoAllNetworkLicenses collects info for licenses for all networks in the organization(s) to separate files
+// infoAllNetworkLicenses collects info for licenses for all networks in the organization(s)
 func infoAllNetworkLicenses(client *meraki.Client, cfg *config.Config) error {
+	// Check if output should go to stdout (consolidated format)
+	if cfg.OutputFile == "" || cfg.OutputFile == "-" {
+		return infoAllNetworkLicensesConsolidated(client, cfg)
+	}
+
+	// Otherwise use separate files for each network
 	if cfg.Organization != "" {
 		// Get info for all networks in a specific organization
 		return infoOrganizationNetworkLicenses(cfg, client, cfg.Organization)
@@ -331,123 +494,6 @@ func infoAllNetworkLicenses(client *meraki.Client, cfg *config.Config) error {
 		// Get info for all networks in all organizations
 		return infoAllOrganizationLicenses(cfg, client)
 	}
-}
-
-// getFileExtension returns the appropriate file extension for the output type
-func getFileExtension(outputType string) string {
-	switch strings.ToLower(outputType) {
-	case "json":
-		return ".json"
-	case "xml":
-		return ".xml"
-	case "csv":
-		return ".csv"
-	default:
-		return ".txt"
-	}
-}
-
-// sanitizeFilename removes or replaces characters that are not safe for filenames
-func sanitizeFilename(input string) string {
-	// Replace spaces and special characters with underscores
-	reg := regexp.MustCompile(`[^a-zA-Z0-9\-_.]`)
-	sanitized := reg.ReplaceAllString(input, "_")
-
-	// Remove multiple consecutive underscores
-	reg2 := regexp.MustCompile(`_{2,}`)
-	sanitized = reg2.ReplaceAllString(sanitized, "_")
-
-	// Trim underscores from beginning and end
-	sanitized = strings.Trim(sanitized, "_")
-
-	// Ensure it's not empty
-	if sanitized == "" {
-		sanitized = "unknown"
-	}
-
-	return sanitized
-}
-
-// generateDefaultRouteTablesFilename generates a default filename for route tables
-func generateDefaultRouteTablesFilename(client *meraki.Client, organizationID, networkIdentifier, outputType string) (string, error) {
-	return generateFilenameWithPrefix(client, "RouteTables", organizationID, networkIdentifier, outputType)
-}
-
-// generateDefaultLicensesFilename generates a default filename for licenses
-func generateDefaultLicensesFilename(client *meraki.Client, organizationID, networkIdentifier, outputType string) (string, error) {
-	return generateFilenameWithPrefix(client, "Licenses", organizationID, networkIdentifier, outputType)
-}
-
-// generateDefaultDownDevicesFilename generates a default filename for down devices
-func generateDefaultDownDevicesFilename(client *meraki.Client, organizationID, networkIdentifier, outputType string) (string, error) {
-	return generateFilenameWithPrefix(client, "Down", organizationID, networkIdentifier, outputType)
-}
-
-// generateFilenameWithPrefix generates a filename with a given prefix in the format: <prefix>-<org>-<network>-<RFC3339 datetime>.ext
-func generateFilenameWithPrefix(client *meraki.Client, prefix, organizationID, networkIdentifier, outputType string) (string, error) {
-	// Get organization name
-	orgs, err := client.GetOrganizations()
-	if err != nil {
-		return "", fmt.Errorf("failed to get organizations: %w", err)
-	}
-
-	var orgName string
-	for _, org := range orgs {
-		if org.ID == organizationID {
-			orgName = org.Name
-			break
-		}
-	}
-	if orgName == "" {
-		orgName = organizationID // fallback to ID if name not found
-	}
-
-	// Get network name if networkIdentifier is provided
-	networkName := ""
-	if networkIdentifier != "" {
-		// Resolve network identifier to get network info
-		networks, err := client.GetOrganizationNetworks(organizationID)
-		if err != nil {
-			return "", fmt.Errorf("failed to get networks: %w", err)
-		}
-
-		// Find the network by ID or name
-		for _, network := range networks {
-			if network.ID == networkIdentifier || network.Name == networkIdentifier {
-				networkName = network.Name
-				break
-			}
-		}
-
-		if networkName == "" {
-			networkName = networkIdentifier // fallback to identifier if not found
-		}
-	} else {
-		networkName = "AllNetworks"
-	}
-
-	// Generate RFC3339-style timestamp (filename-safe version)
-	timestamp := time.Now().Format("2006-01-02T15-04-05Z07-00")
-
-	// Sanitize names for filename
-	sanitizedOrgName := sanitizeFilename(orgName)
-	sanitizedNetworkName := sanitizeFilename(networkName)
-
-	// Get file extension based on output type, default to .txt
-	ext := getFileExtension(outputType)
-	if ext == "" {
-		ext = ".txt"
-	}
-
-	// Generate filename: <prefix>-<org>-<network>-<RFC3339 datetime>.ext
-	filename := fmt.Sprintf("%s-%s-%s-%s%s",
-		prefix,
-		sanitizedOrgName,
-		sanitizedNetworkName,
-		timestamp,
-		ext)
-
-	return filename, nil
 }
 
 // showAccessInformation displays available organizations and networks for the API key
@@ -584,14 +630,9 @@ func infoOrganizationNetworkRoutes(cfg *config.Config, client *meraki.Client, or
 		networkCfg.Organization = organizationID
 		networkCfg.Network = network.ID
 
-		// Generate filename for this network
-		if networkCfg.OutputFile == "" || networkCfg.OutputFile == "default" {
-			outputFile, err := generateDefaultRouteTablesFilename(client, organizationID, network.ID, cfg.OutputType)
-			if err != nil {
-				slog.Error("Failed to generate filename for network", "network", network.Name, "error", err)
-				continue
-			}
-			networkCfg.OutputFile = outputFile
+		// Only proceed if a specific output file is provided
+		if networkCfg.OutputFile == "" {
+			return fmt.Errorf("no output file specified for separate file generation")
 		}
 
 		err := infoSingleNetworkRoutes(client, &networkCfg)
@@ -617,14 +658,9 @@ func infoOrganizationNetworkLicenses(cfg *config.Config, client *meraki.Client, 
 		networkCfg.Organization = organizationID
 		networkCfg.Network = network.ID
 
-		// Generate filename for this network
-		if networkCfg.OutputFile == "" || networkCfg.OutputFile == "default" {
-			outputFile, err := generateDefaultLicensesFilename(client, organizationID, network.ID, cfg.OutputType)
-			if err != nil {
-				slog.Error("Failed to generate filename for network", "network", network.Name, "error", err)
-				continue
-			}
-			networkCfg.OutputFile = outputFile
+		// Only proceed if a specific output file is provided
+		if networkCfg.OutputFile == "" {
+			return fmt.Errorf("no output file specified for separate file generation")
 		}
 
 		err := infoSingleNetworkLicenses(client, &networkCfg)
@@ -688,14 +724,9 @@ func infoOrganizationNetworkDownDevices(cfg *config.Config, client *meraki.Clien
 		networkCfg.Organization = organizationID
 		networkCfg.Network = network.ID
 
-		// Generate filename for this network
-		if networkCfg.OutputFile == "" || networkCfg.OutputFile == "default" {
-			outputFile, err := generateDefaultDownDevicesFilename(client, organizationID, network.ID, cfg.OutputType)
-			if err != nil {
-				slog.Error("Failed to generate filename for network", "network", network.Name, "error", err)
-				continue
-			}
-			networkCfg.OutputFile = outputFile
+		// Only proceed if a specific output file is provided
+		if networkCfg.OutputFile == "" {
+			return fmt.Errorf("no output file specified for separate file generation")
 		}
 
 		err := infoSingleNetworkDownDevices(client, &networkCfg)
@@ -720,6 +751,66 @@ func infoAllOrganizationDownDevices(cfg *config.Config, client *meraki.Client) e
 		err := infoOrganizationNetworkDownDevices(cfg, client, org.ID)
 		if err != nil {
 			slog.Error("Failed to collect down device info for organization", "org", org.Name, "error", err)
+			continue
+		}
+	}
+
+	return nil
+}
+
+// infoOrganizationNetworkAlertingDevices collects info for alerting devices for all networks in an organization
+func infoOrganizationNetworkAlertingDevices(cfg *config.Config, client *meraki.Client, organizationID string) error {
+	networks, err := client.GetOrganizationNetworks(organizationID)
+	if err != nil {
+		return fmt.Errorf("error getting organization networks: %w", err)
+	}
+
+	for _, network := range networks {
+		// Create a copy of config for this network
+		networkCfg := *cfg
+		networkCfg.Organization = organizationID
+		networkCfg.Network = network.ID
+
+		// Only proceed if a specific output file is provided
+		if networkCfg.OutputFile == "" {
+			return fmt.Errorf("no output file specified for separate file generation")
+		}
+
+		// Fetch alerting devices for this network
+		alertingDevices, err := client.GetAlertingDevices(organizationID, network.ID)
+		if err != nil {
+			slog.Error("Failed to get alerting devices for network", "network", network.Name, "error", err)
+			continue
+		}
+
+		if len(alertingDevices) > 0 {
+			// Write to file only if there are alerting devices
+			outputWriter := output.NewWriter(cfg.OutputType)
+			if err := outputWriter.WriteToFile(alertingDevices, networkCfg.OutputFile); err != nil {
+				slog.Error("Failed to write alerting devices info", "network", network.Name, "error", err)
+				continue
+			}
+			slog.Info("Alerting devices info collection completed", "network", network.Name, "device_count", len(alertingDevices), "output_file", networkCfg.OutputFile)
+		} else {
+			slog.Info("No alerting devices found", "network", network.Name)
+		}
+	}
+
+	return nil
+}
+
+// infoAllOrganizationAlertingDevices collects info for alerting devices for all organizations
+func infoAllOrganizationAlertingDevices(cfg *config.Config, client *meraki.Client) error {
+	organizations, err := client.GetOrganizations()
+	if err != nil {
+		return fmt.Errorf("error getting organizations: %w", err)
+	}
+
+	for _, org := range organizations {
+		slog.Info("Processing organization for alerting devices", "org", org.Name, "id", org.ID)
+		err := infoOrganizationNetworkAlertingDevices(cfg, client, org.ID)
+		if err != nil {
+			slog.Error("Failed to collect alerting device info for organization", "org", org.Name, "error", err)
 			continue
 		}
 	}
