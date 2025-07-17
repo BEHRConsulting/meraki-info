@@ -152,6 +152,16 @@ func TestClient_getNetworkRoutes(t *testing.T) {
 					}
 				]
 			}`))
+		case "/networks/net123/appliance/vlans":
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`[
+				{
+					"id": 1,
+					"name": "Default",
+					"applianceIp": "172.16.1.1",
+					"subnet": "172.16.1.0/24"
+				}
+			]`))
 		default:
 			t.Errorf("Unexpected path: %s", r.URL.Path)
 			w.WriteHeader(http.StatusNotFound)
@@ -170,8 +180,8 @@ func TestClient_getNetworkRoutes(t *testing.T) {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	if len(routes) != 2 {
-		t.Errorf("Expected 2 routes, got %d", len(routes))
+	if len(routes) != 3 {
+		t.Errorf("Expected 3 routes, got %d", len(routes))
 	}
 
 	// Check static route
@@ -186,6 +196,11 @@ func TestClient_getNetworkRoutes(t *testing.T) {
 	// Check VPN route
 	if routes[1].Subnet != "10.0.0.0/8" {
 		t.Errorf("Expected VPN subnet '10.0.0.0/8', got '%s'", routes[1].Subnet)
+	}
+
+	// Check VLAN route
+	if routes[2].Subnet != "172.16.1.0/24" {
+		t.Errorf("Expected VLAN subnet '172.16.1.0/24', got '%s'", routes[2].Subnet)
 	}
 }
 
@@ -411,6 +426,26 @@ func TestClient_GetAllNetworkRoutes(t *testing.T) {
 					}
 				]
 			}`))
+		case "/networks/net1/appliance/vlans":
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`[
+				{
+					"id": 1,
+					"name": "Default-1",
+					"applianceIp": "172.16.1.1",
+					"subnet": "172.16.1.0/24"
+				}
+			]`))
+		case "/networks/net2/appliance/vlans":
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`[
+				{
+					"id": 1,
+					"name": "Default-2",
+					"applianceIp": "172.16.2.1",
+					"subnet": "172.16.2.0/24"
+				}
+			]`))
 		default:
 			t.Errorf("Unexpected path: %s", r.URL.Path)
 			w.WriteHeader(http.StatusNotFound)
@@ -437,8 +472,8 @@ func TestClient_GetAllNetworkRoutes(t *testing.T) {
 	if allNetworkRoutes[0].Network.ID != "net1" {
 		t.Errorf("Expected network ID 'net1', got '%s'", allNetworkRoutes[0].Network.ID)
 	}
-	if len(allNetworkRoutes[0].Routes) != 2 {
-		t.Errorf("Expected 2 routes for net1, got %d", len(allNetworkRoutes[0].Routes))
+	if len(allNetworkRoutes[0].Routes) != 3 {
+		t.Errorf("Expected 3 routes for net1, got %d", len(allNetworkRoutes[0].Routes))
 	}
 	if allNetworkRoutes[0].Routes[0].ID != "route1" {
 		t.Errorf("Expected route ID 'route1', got '%s'", allNetworkRoutes[0].Routes[0].ID)
@@ -448,8 +483,8 @@ func TestClient_GetAllNetworkRoutes(t *testing.T) {
 	if allNetworkRoutes[1].Network.ID != "net2" {
 		t.Errorf("Expected network ID 'net2', got '%s'", allNetworkRoutes[1].Network.ID)
 	}
-	if len(allNetworkRoutes[1].Routes) != 2 {
-		t.Errorf("Expected 2 routes for net2, got %d", len(allNetworkRoutes[1].Routes))
+	if len(allNetworkRoutes[1].Routes) != 3 {
+		t.Errorf("Expected 3 routes for net2, got %d", len(allNetworkRoutes[1].Routes))
 	}
 	if allNetworkRoutes[1].Routes[0].ID != "route2" {
 		t.Errorf("Expected route ID 'route2', got '%s'", allNetworkRoutes[1].Routes[0].ID)

@@ -14,7 +14,7 @@ if the parameter --apikey is provided, use this as the api key. Can also be set 
 
 If the parameter --output is provided, use this for the name of output file. If --output is "-" or not provided then send to stdout. If --output is "default", use default filenames
 
-If the parameter --route-tables is provided, output route tables. Default filename for --route-tables is in the form of RouteTables-<org>-<network>-<RFC3339 date time>.txt 
+If the parameter --route-tables is provided, output route tables. Default filename for --route-tables is in the form of RouteTables-<org>-<network>-<RFC3339 date time>.txt. Routing information can be located on the switches and switch stacks.
 
 If the parameter --licenses is provided, output license information. Default filename for --licenses is in the form of Licenses-<org>-<network>-<RFC3339 date time>.txt 
 

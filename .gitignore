@@ -24,7 +24,6 @@ go.work
 meraki-info
 
 # Output files
-routes.*
 *.txt
 *.json
 *.xml

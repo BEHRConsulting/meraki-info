@@ -248,6 +248,36 @@ func (c *Client) getNetworkRoutes(networkID string) ([]Route, error) {
 		slog.Debug("Fetched VPN routes", "network_id", networkID, "count", len(vpnRoutes))
 	}
 
+	// Fetch VLAN/L3 interface routes (directly connected subnets)
+	vlanRoutes, err := c.getNetworkVLANRoutes(networkID)
+	if err != nil {
+		slog.Debug("No VLAN routes or error fetching VLAN routes", "network_id", networkID, "error", err)
+		// VLAN routes might not be available for all networks, don't treat as error
+	} else {
+		allRoutes = append(allRoutes, vlanRoutes...)
+		slog.Debug("Fetched VLAN routes", "network_id", networkID, "count", len(vlanRoutes))
+	}
+
+	// Fetch switch routing information (for Layer 3 switches)
+	switchRoutes, err := c.getNetworkSwitchRoutes(networkID)
+	if err != nil {
+		slog.Debug("No switch routes or error fetching switch routes", "network_id", networkID, "error", err)
+		// Switch routes might not be available for all networks, don't treat as error
+	} else {
+		allRoutes = append(allRoutes, switchRoutes...)
+		slog.Debug("Fetched switch routes", "network_id", networkID, "count", len(switchRoutes))
+	}
+
+	// Fetch switch stack routing information (for switch stacks with Layer 3 capabilities)
+	switchStackRoutes, err := c.getNetworkSwitchStackRoutes(networkID)
+	if err != nil {
+		slog.Debug("No switch stack routes or error fetching switch stack routes", "network_id", networkID, "error", err)
+		// Switch stack routes might not be available for all networks, don't treat as error
+	} else {
+		allRoutes = append(allRoutes, switchStackRoutes...)
+		slog.Debug("Fetched switch stack routes", "network_id", networkID, "count", len(switchStackRoutes))
+	}
+
 	return allRoutes, nil
 }
 
@@ -309,6 +339,306 @@ func (c *Client) getNetworkVPNRoutes(networkID string) ([]Route, error) {
 				Name:    fmt.Sprintf("VPN Route %d", i+1),
 				Subnet:  subnet.LocalSubnet,
 				Enabled: true, // VPN routes are enabled if useVpn is true
+			})
+		}
+	}
+
+	return routes, nil
+}
+
+// getNetworkVLANRoutes fetches VLAN/L3 interface routes (directly connected subnets)
+func (c *Client) getNetworkVLANRoutes(networkID string) ([]Route, error) {
+	endpoint := fmt.Sprintf("/networks/%s/appliance/vlans", networkID)
+
+	resp, err := c.makeRequest("GET", endpoint)
+	if err != nil {
+		// VLANs might not be configured, return empty slice
+		return []Route{}, nil
+	}
+	defer resp.Body.Close()
+
+	var vlans []struct {
+		ID           int    `json:"id"`
+		Name         string `json:"name"`
+		ApplianceIP  string `json:"applianceIp"`
+		Subnet       string `json:"subnet"`
+		InterfaceID  string `json:"interfaceId"`
+		DHCPHandling string `json:"dhcpHandling"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&vlans); err != nil {
+		return []Route{}, nil // Not an error, just no VLAN routes
+	}
+
+	var routes []Route
+	for _, vlan := range vlans {
+		if vlan.Subnet != "" {
+			routes = append(routes, Route{
+				ID:        fmt.Sprintf("vlan-%d", vlan.ID),
+				Name:      fmt.Sprintf("VLAN %d - %s", vlan.ID, vlan.Name),
+				Subnet:    vlan.Subnet,
+				GatewayIP: vlan.ApplianceIP,
+				Enabled:   true, // VLAN interfaces are enabled by default
+			})
+		}
+	}
+
+	return routes, nil
+}
+
+// getNetworkSwitchRoutes attempts to fetch switch routing information
+func (c *Client) getNetworkSwitchRoutes(networkID string) ([]Route, error) {
+	// First try to get switch routing interfaces
+	switchInterfaces, err := c.getNetworkSwitchInterfaces(networkID)
+	if err != nil {
+		slog.Debug("No switch routing interfaces available", "network_id", networkID, "error", err)
+		return []Route{}, nil
+	}
+
+	// Then try to get switch static routes
+	switchStaticRoutes, err := c.getNetworkSwitchStaticRoutes(networkID)
+	if err != nil {
+		slog.Debug("No switch static routes available", "network_id", networkID, "error", err)
+	}
+
+	// Combine both types
+	var allRoutes []Route
+	allRoutes = append(allRoutes, switchInterfaces...)
+	allRoutes = append(allRoutes, switchStaticRoutes...)
+
+	return allRoutes, nil
+}
+
+// getNetworkSwitchInterfaces attempts to fetch switch Layer 3 interfaces
+func (c *Client) getNetworkSwitchInterfaces(networkID string) ([]Route, error) {
+	endpoint := fmt.Sprintf("/networks/%s/switch/routing/interfaces", networkID)
+
+	resp, err := c.makeRequest("GET", endpoint)
+	if err != nil {
+		return []Route{}, nil
+	}
+	defer resp.Body.Close()
+
+	var interfaces []struct {
+		InterfaceID string `json:"interfaceId"`
+		Name        string `json:"name"`
+		Subnet      string `json:"subnet"`
+		InterfaceIP string `json:"interfaceIp"`
+		VLAN        int    `json:"vlan"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&interfaces); err != nil {
+		return []Route{}, nil
+	}
+
+	var routes []Route
+	for _, iface := range interfaces {
+		if iface.Subnet != "" {
+			routes = append(routes, Route{
+				ID:        fmt.Sprintf("switch-iface-%s", iface.InterfaceID),
+				Name:      fmt.Sprintf("Switch Interface - %s", iface.Name),
+				Subnet:    iface.Subnet,
+				GatewayIP: iface.InterfaceIP,
+				Enabled:   true,
+			})
+		}
+	}
+
+	return routes, nil
+}
+
+// getNetworkSwitchStaticRoutes attempts to fetch switch static routes
+func (c *Client) getNetworkSwitchStaticRoutes(networkID string) ([]Route, error) {
+	endpoint := fmt.Sprintf("/networks/%s/switch/routing/staticRoutes", networkID)
+
+	resp, err := c.makeRequest("GET", endpoint)
+	if err != nil {
+		return []Route{}, nil
+	}
+	defer resp.Body.Close()
+
+	var routes []Route
+	if err := json.NewDecoder(resp.Body).Decode(&routes); err != nil {
+		return []Route{}, nil
+	}
+
+	// Mark these as switch static routes
+	for i := range routes {
+		if routes[i].Name == "" {
+			routes[i].Name = fmt.Sprintf("Switch Static Route %d", i+1)
+		}
+	}
+
+	return routes, nil
+}
+
+// getNetworkSwitchStackRoutes attempts to fetch routing information from switch stacks
+func (c *Client) getNetworkSwitchStackRoutes(networkID string) ([]Route, error) {
+	// First get all switch stacks in the network
+	stacks, err := c.getNetworkSwitchStacks(networkID)
+	if err != nil {
+		slog.Debug("No switch stacks found", "network_id", networkID, "error", err)
+		return []Route{}, nil
+	}
+
+	var allRoutes []Route
+
+	// For each stack, get routing interfaces and static routes
+	for _, stack := range stacks {
+		// Get routing interfaces for this stack
+		stackInterfaces, err := c.getSwitchStackRoutingInterfaces(networkID, stack.ID)
+		if err != nil {
+			slog.Debug("Failed to get routing interfaces for stack", "network_id", networkID, "stack_id", stack.ID, "error", err)
+		} else {
+			allRoutes = append(allRoutes, stackInterfaces...)
+		}
+
+		// Get static routes for this stack
+		stackStaticRoutes, err := c.getSwitchStackStaticRoutes(networkID, stack.ID)
+		if err != nil {
+			slog.Debug("Failed to get static routes for stack", "network_id", networkID, "stack_id", stack.ID, "error", err)
+		} else {
+			allRoutes = append(allRoutes, stackStaticRoutes...)
+		}
+
+		// Get DHCP information for this stack
+		stackDHCPRoutes, err := c.getSwitchStackDHCPRoutes(networkID, stack.ID)
+		if err != nil {
+			slog.Debug("Failed to get DHCP routes for stack", "network_id", networkID, "stack_id", stack.ID, "error", err)
+		} else {
+			allRoutes = append(allRoutes, stackDHCPRoutes...)
+		}
+	}
+
+	return allRoutes, nil
+}
+
+// SwitchStack represents a switch stack
+type SwitchStack struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// getNetworkSwitchStacks gets all switch stacks in a network
+func (c *Client) getNetworkSwitchStacks(networkID string) ([]SwitchStack, error) {
+	endpoint := fmt.Sprintf("/networks/%s/switch/stacks", networkID)
+
+	resp, err := c.makeRequest("GET", endpoint)
+	if err != nil {
+		return []SwitchStack{}, nil
+	}
+	defer resp.Body.Close()
+
+	var stacks []SwitchStack
+	if err := json.NewDecoder(resp.Body).Decode(&stacks); err != nil {
+		return []SwitchStack{}, nil
+	}
+
+	return stacks, nil
+}
+
+// getSwitchStackRoutingInterfaces gets routing interfaces for a specific switch stack
+func (c *Client) getSwitchStackRoutingInterfaces(networkID, stackID string) ([]Route, error) {
+	endpoint := fmt.Sprintf("/networks/%s/switch/stacks/%s/routing/interfaces", networkID, stackID)
+
+	resp, err := c.makeRequest("GET", endpoint)
+	if err != nil {
+		return []Route{}, nil
+	}
+	defer resp.Body.Close()
+
+	var interfaces []struct {
+		InterfaceID string `json:"interfaceId"`
+		Name        string `json:"name"`
+		Subnet      string `json:"subnet"`
+		InterfaceIP string `json:"interfaceIp"`
+		VLAN        int    `json:"vlan"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&interfaces); err != nil {
+		return []Route{}, nil
+	}
+
+	var routes []Route
+	for _, iface := range interfaces {
+		if iface.Subnet != "" {
+			routes = append(routes, Route{
+				ID:        fmt.Sprintf("stack-%s-iface-%s", stackID, iface.InterfaceID),
+				Name:      fmt.Sprintf("Stack Interface - %s", iface.Name),
+				Subnet:    iface.Subnet,
+				GatewayIP: iface.InterfaceIP,
+				Enabled:   true,
+			})
+		}
+	}
+
+	return routes, nil
+}
+
+// getSwitchStackStaticRoutes gets static routes for a specific switch stack
+func (c *Client) getSwitchStackStaticRoutes(networkID, stackID string) ([]Route, error) {
+	endpoint := fmt.Sprintf("/networks/%s/switch/stacks/%s/routing/staticRoutes", networkID, stackID)
+
+	resp, err := c.makeRequest("GET", endpoint)
+	if err != nil {
+		return []Route{}, nil
+	}
+	defer resp.Body.Close()
+
+	var routes []Route
+	if err := json.NewDecoder(resp.Body).Decode(&routes); err != nil {
+		return []Route{}, nil
+	}
+
+	// Mark these as switch stack static routes
+	for i := range routes {
+		if routes[i].Name == "" {
+			routes[i].Name = fmt.Sprintf("Stack %s Static Route %d", stackID, i+1)
+		}
+	}
+
+	return routes, nil
+}
+
+// getSwitchStackDHCPRoutes gets DHCP subnet information for a specific switch stack
+func (c *Client) getSwitchStackDHCPRoutes(networkID, stackID string) ([]Route, error) {
+	endpoint := fmt.Sprintf("/networks/%s/switch/stacks/%s/routing/dhcp", networkID, stackID)
+
+	resp, err := c.makeRequest("GET", endpoint)
+	if err != nil {
+		return []Route{}, nil
+	}
+	defer resp.Body.Close()
+
+	var dhcpConfig struct {
+		DHCPRelayServers []string `json:"dhcpRelayServerIps"`
+		DHCPOptions      []struct {
+			Code  string `json:"code"`
+			Type  string `json:"type"`
+			Value string `json:"value"`
+		} `json:"dhcpOptions"`
+		ReservedIPRanges []struct {
+			Start   string `json:"start"`
+			End     string `json:"end"`
+			Comment string `json:"comment"`
+		} `json:"reservedIpRanges"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&dhcpConfig); err != nil {
+		return []Route{}, nil
+	}
+
+	var routes []Route
+
+	// Add DHCP relay servers as routes if they exist
+	for i, relayServer := range dhcpConfig.DHCPRelayServers {
+		if relayServer != "" {
+			routes = append(routes, Route{
+				ID:        fmt.Sprintf("stack-%s-dhcp-relay-%d", stackID, i),
+				Name:      fmt.Sprintf("Stack %s DHCP Relay %d", stackID, i+1),
+				Subnet:    "0.0.0.0/0", // DHCP relay typically forwards all requests
+				GatewayIP: relayServer,
+				Enabled:   true,
 			})
 		}
 	}
