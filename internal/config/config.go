@@ -99,6 +99,12 @@ func parseConfigWithValidation() (*Config, error) {
 		return nil, fmt.Errorf("invalid command '%s'. Must be one of: access, alerting, down, licenses, route-tables", args[0])
 	}
 
+	// Set InfoAll to true if no network is specified (as per requirements)
+	// Exception: access command doesn't use InfoAll
+	if cfg.Network == "" && cfg.Command != "access" {
+		cfg.InfoAll = true
+	}
+
 	// Validate required fields
 	if cfg.APIKey == "" {
 		return nil, fmt.Errorf("API key is required. Use -apikey flag or MERAKI_APIKEY environment variable")

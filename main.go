@@ -285,9 +285,11 @@ func infoAllNetworkAlertingDevicesConsolidated(client *meraki.Client, cfg *confi
 			// Add network and organization information to each device
 			for _, device := range alertingDevices {
 				deviceWithNetwork := meraki.DeviceWithNetwork{
-					Device:       device,
-					NetworkName:  network.Name,
-					Organization: org.Name,
+					Device:         device,
+					NetworkName:    network.Name,
+					NetworkID:      network.ID,
+					Organization:   org.Name,
+					OrganizationID: org.ID,
 				}
 				allAlertingDevices = append(allAlertingDevices, deviceWithNetwork)
 			}
@@ -334,8 +336,9 @@ func infoAllNetworkLicensesConsolidated(client *meraki.Client, cfg *config.Confi
 		// Add organization information to each license
 		for _, license := range licenses {
 			licenseWithNetwork := meraki.LicenseWithNetwork{
-				License:      license,
-				Organization: org.Name,
+				License:        license,
+				Organization:   org.Name,
+				OrganizationID: org.ID,
 			}
 			allLicenses = append(allLicenses, licenseWithNetwork)
 		}
@@ -389,9 +392,11 @@ func infoAllNetworkDownDevicesConsolidated(client *meraki.Client, cfg *config.Co
 			// Add network and organization information to each device
 			for _, device := range downDevices {
 				deviceWithNetwork := meraki.DeviceWithNetwork{
-					Device:       device,
-					NetworkName:  network.Name,
-					Organization: org.Name,
+					Device:         device,
+					NetworkName:    network.Name,
+					NetworkID:      network.ID,
+					Organization:   org.Name,
+					OrganizationID: org.ID,
 				}
 				allDownDevices = append(allDownDevices, deviceWithNetwork)
 			}

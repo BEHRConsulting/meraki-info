@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -87,14 +88,17 @@ type RouteWithNetwork struct {
 // DeviceWithNetwork extends the Device struct to include network and organization information
 type DeviceWithNetwork struct {
 	Device
-	NetworkName  string `json:"network_name" xml:"NetworkName" csv:"network_name"`
-	Organization string `json:"organization" xml:"Organization" csv:"organization"`
+	NetworkName    string `json:"network_name" xml:"NetworkName" csv:"network_name"`
+	NetworkID      string `json:"network_id" xml:"NetworkID" csv:"network_id"`
+	Organization   string `json:"organization" xml:"Organization" csv:"organization"`
+	OrganizationID string `json:"organization_id" xml:"OrganizationID" csv:"organization_id"`
 }
 
 // LicenseWithNetwork extends the License struct to include organization information
 type LicenseWithNetwork struct {
 	License
-	Organization string `json:"organization" xml:"Organization" csv:"organization"`
+	Organization   string `json:"organization" xml:"Organization" csv:"organization"`
+	OrganizationID string `json:"organization_id" xml:"OrganizationID" csv:"organization_id"`
 }
 
 // DeviceStatus represents the status information for a device from the organization statuses endpoint
@@ -110,11 +114,30 @@ type NetworkDevices struct {
 	Devices []Device `json:"devices"`
 }
 
+// RetryConfig holds retry configuration parameters
+type RetryConfig struct {
+	MaxRetries      int
+	InitialInterval time.Duration
+	MaxInterval     time.Duration
+	Multiplier      float64
+}
+
+// DefaultRetryConfig returns a default retry configuration
+func DefaultRetryConfig() RetryConfig {
+	return RetryConfig{
+		MaxRetries:      3,
+		InitialInterval: 1 * time.Second,
+		MaxInterval:     30 * time.Second,
+		Multiplier:      2.0,
+	}
+}
+
 // Client represents a Meraki API client
 type Client struct {
-	httpClient *http.Client
-	baseURL    string
-	apiKey     string
+	httpClient  *http.Client
+	baseURL     string
+	apiKey      string
+	retryConfig RetryConfig
 }
 
 // NewClient creates a new Meraki API client
@@ -139,9 +162,10 @@ func NewClient(apiKey string) (*Client, error) {
 	}
 
 	return &Client{
-		httpClient: client,
-		baseURL:    "https://api.meraki.com/api/v1",
-		apiKey:     apiKey,
+		httpClient:  client,
+		baseURL:     "https://api.meraki.com/api/v1",
+		apiKey:      apiKey,
+		retryConfig: DefaultRetryConfig(),
 	}, nil
 }
 
@@ -164,41 +188,121 @@ func NewClientWithOAuth2(clientID, clientSecret, token string) (*Client, error) 
 	client := config.Client(context.Background(), tok)
 
 	return &Client{
-		httpClient: client,
-		baseURL:    "https://api.meraki.com/api/v1",
+		httpClient:  client,
+		baseURL:     "https://api.meraki.com/api/v1",
+		retryConfig: DefaultRetryConfig(),
 	}, nil
 }
 
-// makeRequest makes an authenticated HTTP request to the Meraki API
+// isRetryableError determines if an error should be retried
+func isRetryableError(err error, statusCode int) bool {
+	// Retry on network errors
+	if err != nil {
+		return true
+	}
+
+	// Retry on specific HTTP status codes
+	switch statusCode {
+	case 429: // Too Many Requests (rate limiting)
+		return true
+	case 500, 502, 503, 504: // Server errors
+		return true
+	default:
+		return false
+	}
+}
+
+// calculateBackoff calculates the backoff duration for a retry attempt
+func (c *Client) calculateBackoff(attempt int) time.Duration {
+	if attempt <= 0 {
+		return c.retryConfig.InitialInterval
+	}
+
+	// Exponential backoff with jitter
+	backoff := time.Duration(float64(c.retryConfig.InitialInterval) * math.Pow(c.retryConfig.Multiplier, float64(attempt-1)))
+
+	// Cap at maximum interval
+	if backoff > c.retryConfig.MaxInterval {
+		backoff = c.retryConfig.MaxInterval
+	}
+
+	return backoff
+}
+
+// makeRequest makes an authenticated HTTP request to the Meraki API with retry logic
 func (c *Client) makeRequest(method, endpoint string) (*http.Response, error) {
 	url := fmt.Sprintf("%s%s", c.baseURL, endpoint)
 
-	req, err := http.NewRequest(method, url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+	var lastErr error
+	var lastStatusCode int
+
+	for attempt := 0; attempt <= c.retryConfig.MaxRetries; attempt++ {
+		req, err := http.NewRequest(method, url, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create request: %w", err)
+		}
+
+		// Add API key authentication if available
+		if c.apiKey != "" {
+			req.Header.Set("X-Cisco-Meraki-API-Key", c.apiKey)
+		}
+
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("User-Agent", "meraki-info/1.0.0")
+
+		slog.Debug("Making API request", "method", method, "url", url, "attempt", attempt+1)
+
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			lastErr = err
+			lastStatusCode = 0
+
+			if attempt < c.retryConfig.MaxRetries && isRetryableError(err, 0) {
+				backoff := c.calculateBackoff(attempt)
+				slog.Info("Request failed, retrying", "error", err, "attempt", attempt+1, "backoff", backoff)
+				time.Sleep(backoff)
+				continue
+			}
+
+			return nil, fmt.Errorf("failed to make request after %d attempts: %w", attempt+1, err)
+		}
+
+		// Check for HTTP errors
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			lastStatusCode = resp.StatusCode
+			lastErr = fmt.Errorf("API request failed with status: %d", resp.StatusCode)
+			resp.Body.Close()
+
+			if attempt < c.retryConfig.MaxRetries && isRetryableError(nil, resp.StatusCode) {
+				backoff := c.calculateBackoff(attempt)
+				slog.Info("Request failed with retryable status, retrying", "status", resp.StatusCode, "attempt", attempt+1, "backoff", backoff)
+				time.Sleep(backoff)
+				continue
+			}
+
+			return nil, fmt.Errorf("API request failed with status %d after %d attempts", resp.StatusCode, attempt+1)
+		}
+
+		// Success - return the response
+		slog.Debug("API request successful", "method", method, "url", url, "attempt", attempt+1)
+		return resp, nil
 	}
 
-	// Add API key authentication if available
-	if c.apiKey != "" {
-		req.Header.Set("X-Cisco-Meraki-API-Key", c.apiKey)
+	// This should not be reached, but included for completeness
+	if lastErr != nil {
+		return nil, fmt.Errorf("request failed after %d attempts: %w", c.retryConfig.MaxRetries+1, lastErr)
 	}
+	return nil, fmt.Errorf("request failed after %d attempts with status: %d", c.retryConfig.MaxRetries+1, lastStatusCode)
+}
 
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", "meraki-info/1.0.0")
+// SetRetryConfig allows customization of retry behavior
+func (c *Client) SetRetryConfig(config RetryConfig) {
+	c.retryConfig = config
+}
 
-	slog.Debug("Making API request", "method", method, "url", url)
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to make request: %w", err)
-	}
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		defer resp.Body.Close()
-		return nil, fmt.Errorf("API request failed with status: %d", resp.StatusCode)
-	}
-
-	return resp, nil
+// GetRetryConfig returns the current retry configuration
+func (c *Client) GetRetryConfig() RetryConfig {
+	return c.retryConfig
 }
 
 // GetRoutes fetches all routes for the specified organization and network
