@@ -75,6 +75,13 @@ type Device struct {
 	} `json:"beaconIdParams,omitempty"`
 }
 
+// DeviceStatus represents the status information for a device from the organization statuses endpoint
+type DeviceStatus struct {
+	Serial string `json:"serial"`
+	Name   string `json:"name,omitempty"`
+	Status string `json:"status"`
+}
+
 // NetworkDevices represents devices for a specific network
 type NetworkDevices struct {
 	Network Network  `json:"network"`
@@ -146,7 +153,7 @@ func (c *Client) makeRequest(method, endpoint string) (*http.Response, error) {
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", "meraki-routes-backup/1.0.0")
+	req.Header.Set("User-Agent", "meraki-info/1.0.0")
 
 	slog.Debug("Making API request", "method", method, "url", url)
 
@@ -713,6 +720,25 @@ func (c *Client) GetOrganizationNetworks(organizationID string) ([]Network, erro
 	return c.getOrganizationNetworks(organizationID)
 }
 
+// getOrganizationDeviceStatuses fetches device statuses for all devices in an organization
+func (c *Client) getOrganizationDeviceStatuses(organizationID string) ([]DeviceStatus, error) {
+	endpoint := fmt.Sprintf("/organizations/%s/devices/statuses", organizationID)
+
+	resp, err := c.makeRequest("GET", endpoint)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var deviceStatuses []DeviceStatus
+	if err := json.NewDecoder(resp.Body).Decode(&deviceStatuses); err != nil {
+		return nil, fmt.Errorf("failed to decode device statuses: %w", err)
+	}
+
+	slog.Debug("Retrieved device statuses from organization", "organization_id", organizationID, "status_count", len(deviceStatuses))
+	return deviceStatuses, nil
+}
+
 // GetAllNetworkRoutes fetches routes for all networks in an organization
 func (c *Client) GetAllNetworkRoutes(organizationID string) ([]NetworkRoutes, error) {
 	// Get all networks in the organization
@@ -977,6 +1003,55 @@ func (c *Client) GetDownDevices(organizationID, networkIdentifier string) ([]Dev
 	return downDevices, nil
 }
 
+// GetAlertingDevices fetches devices that are currently alerting
+func (c *Client) GetAlertingDevices(organizationID, networkIdentifier string) ([]Device, error) {
+	// Get all devices first
+	allDevices, err := c.GetDevices(organizationID, networkIdentifier)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get device statuses from organization endpoint
+	deviceStatuses, err := c.getOrganizationDeviceStatuses(organizationID)
+	if err != nil {
+		slog.Warn("Failed to get device statuses, using basic device info", "error", err)
+		// Fall back to using basic device status info (which might be empty)
+		alertingDevices := make([]Device, 0)
+		for _, device := range allDevices {
+			slog.Debug("Device status check (fallback)", "name", device.Name, "status", device.Status, "is_alerting", isDeviceAlerting(device.Status))
+			if isDeviceAlerting(device.Status) {
+				alertingDevices = append(alertingDevices, device)
+			}
+		}
+		slog.Info("Filtered alerting devices (fallback)", "total_devices", len(allDevices), "alerting_devices", len(alertingDevices))
+		return alertingDevices, nil
+	}
+
+	// Create a map of device serial to status for quick lookup
+	statusMap := make(map[string]string)
+	for _, status := range deviceStatuses {
+		statusMap[status.Serial] = status.Status
+	}
+
+	// Filter for devices that are alerting using actual status data
+	alertingDevices := make([]Device, 0)
+	for _, device := range allDevices {
+		actualStatus, hasStatus := statusMap[device.Serial]
+		if hasStatus {
+			device.Status = actualStatus // Update the device with actual status
+		}
+
+		slog.Debug("Device status check", "name", device.Name, "serial", device.Serial, "status", device.Status, "is_alerting", isDeviceAlerting(device.Status))
+
+		if isDeviceAlerting(device.Status) {
+			alertingDevices = append(alertingDevices, device)
+		}
+	}
+
+	slog.Info("Filtered alerting devices", "total_devices", len(allDevices), "alerting_devices", len(alertingDevices))
+	return alertingDevices, nil
+}
+
 // getNetworkDevices fetches all devices in a specific network
 func (c *Client) getNetworkDevices(networkID string) ([]Device, error) {
 	endpoint := fmt.Sprintf("/networks/%s/devices", networkID)
@@ -1044,6 +1119,22 @@ func isDeviceDown(status string) bool {
 	statusLower := strings.ToLower(status)
 	for _, downStatus := range downStatuses {
 		if statusLower == downStatus {
+			return true
+		}
+	}
+
+	return false
+}
+
+// isDeviceAlerting determines if a device is considered alerting based on its status
+func isDeviceAlerting(status string) bool {
+	alertingStatuses := []string{
+		"alerting",
+	}
+
+	statusLower := strings.ToLower(status)
+	for _, alertingStatus := range alertingStatuses {
+		if statusLower == alertingStatus {
 			return true
 		}
 	}

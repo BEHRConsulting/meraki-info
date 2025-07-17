@@ -1,33 +1,38 @@
-
+### Initial prompts
+```
 Description This project is a Golang application that collects Meraki network information.
 
 The app should authenticate with Meraki cloud.
 
 Use production authentication methods and libraries for Meraki, such as OAuth2, to ensure secure access to the Meraki account.
 
-If the parameter --org is provided use this as the organization. Can also be set with env variable MERAKI_ORG. Allow organization to be specified by name or id. This is not case sensitive
+If the command route-tables is provided, output route tables. Default filename is in the form of RouteTables-<org>-<network>-<RFC3339 date time>.txt. Routing information can be located on the security appliances, switches and switch stacks.
 
-If the parameter --network is provided use this as the network. Can also be set with env variable MERAKI_NET. Allow network to be specified by name or id. This is not case sensitive
+If the command licenses is provided, output license information. Default filename is in the form of Licenses-<org>-<network>-<RFC3339 date time>.txt 
 
-if the parameter --apikey is provided, use this as the api key. Can also be set with env variable MERAKI_APIKEY
+If the command down is provided, output all devices are are down. Default filename is in the form of Down-<org>-<network>-<RFC3339 date time>.txt 
 
-If the parameter --output is provided, use this for the name of output file. If --output is "-" or not provided then send to stdout. If --output is "default", use default filenames
+If the command alerting is provided, output all devices in the specified network, or --all networks that are alerting. Default filename is in the form of Alerting-<org>-<network>-<RFC3339 date time>.txt 
 
-If the parameter --route-tables is provided, output route tables. Default filename for --route-tables is in the form of RouteTables-<org>-<network>-<RFC3339 date time>.txt. Routing information can be located on the security appliances, switches and switch stacks.
+If the command access is provided print a nice text output listing the organizations and networks available for the --apikey. Allow filtering by --org parameter
 
-If the parameter --licenses is provided, output license information. Default filename for --licenses is in the form of Licenses-<org>-<network>-<RFC3339 date time>.txt 
+One of the commands is required, if not provided, display usage
 
-If the parameter --down is provided, output all devices are are down. Default filename for --down is in the form of Down-<org>-<network>-<RFC3339 date time>.txt 
+If the option --org is provided use this as the organization. Can also be set with env variable MERAKI_ORG. Allow organization to be specified by name or id. This is not case sensitive
 
-One of the parameters --licenses or --route-tables or --access or --down is required, if not provided, display usage
+If the option --network is provided use this as the network. Can also be set with env variable MERAKI_NET. Allow network to be specified by name or id. This is not case sensitive. If --network is not provided, set --all
 
-If the parameter --format is provided it can be text, xml, json, csv for the output file. Text is the default format.
+if the option --apikey is provided, use this as the api key. Can also be set with env variable MERAKI_APIKEY
 
-If the parameter --access is provided print a nice text output listing the organizations and networks available for the --apikey. Allow filtering by --org parameter
+If the option --output is provided, use this for the name of output file. If --output is "-" or not provided then send to stdout.
 
-If the parameter --all is provided generate files for all networks in the specified organization. If the parameter --org is not specified, process all organizations
+ if --all is specified and --output is not default, include the device network on output
 
-If the parameter --loglevel is provided, the app should set the logging level accordingly. The default logging level should be "error", but it can be set to "debug" or "info" based on the user's preference.
+If the option --format is provided it can be text, xml, json, csv for the output file. Text is the default format.
+
+If the option --all is provided generate files for all networks in the specified organization. If the parameter --org is not specified, process all organizations
+
+If the option --loglevel is provided, the app should set the logging level accordingly. The default logging level should be "error", but it can be set to "debug" or "info" based on the user's preference.
 
 Create unit tests.
 
@@ -40,3 +45,6 @@ The app should be efficient in terms of API calls to Dropbox, minimizing the num
 The code should be well-structured and modular, making it easy to maintain and extend in the future.
 
 The app should include comments and documentation to explain the functionality and usage.
+
+Sanitize all examples
+```

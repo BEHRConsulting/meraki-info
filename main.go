@@ -40,14 +40,13 @@ func main() {
 		cfg.Organization = resolvedOrgID
 	}
 
-	// If --access flag is provided, show available organizations and networks
-	if cfg.ShowAccess {
+	// Handle commands based on the Command field
+	switch cfg.Command {
+	case "access":
 		showAccessInformation(client, cfg.Organization)
 		return
-	}
 
-	// If --route-tables flag is provided, handle route table output
-	if cfg.ShowRouteTables {
+	case "route-tables":
 		if cfg.BackupAll {
 			err := backupAllNetworkRoutes(client, cfg)
 			if err != nil {
@@ -62,10 +61,8 @@ func main() {
 			}
 		}
 		return
-	}
 
-	// If --licenses flag is provided, handle license output
-	if cfg.ShowLicenses {
+	case "licenses":
 		if cfg.BackupAll {
 			err := backupAllNetworkLicenses(client, cfg)
 			if err != nil {
@@ -80,10 +77,8 @@ func main() {
 			}
 		}
 		return
-	}
 
-	// If --down flag is provided, handle down devices output
-	if cfg.ShowDownDevices {
+	case "down":
 		if cfg.BackupAll {
 			err := backupAllNetworkDownDevices(client, cfg)
 			if err != nil {
@@ -98,6 +93,15 @@ func main() {
 			}
 		}
 		return
+
+	case "alerting":
+		// TODO: Implement alerting functionality
+		fmt.Fprintf(os.Stderr, "Error: Alerting command is not yet implemented.\n")
+		os.Exit(1)
+
+	default:
+		fmt.Fprintf(os.Stderr, "Error: Unknown command '%s'. Use access, route-tables, licenses, down, or alerting.\n", cfg.Command)
+		os.Exit(1)
 	}
 }
 

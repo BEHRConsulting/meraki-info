@@ -33,93 +33,105 @@ go build -o meraki-info
 
 ## Usage
 
-### Command Line Flags
+### Command Line Options and Arguments
 
-| Flag | Environment Variable | Description | Required |
+| Option | Environment Variable | Description | Required |
 |------|---------------------|-------------|----------|
-| `--apikey` | `MERAKI_APIKEY` | Meraki API key | Yes |
-| `--org` | `MERAKI_ORG` | Meraki organization ID | Yes* |
-| `--network` | `MERAKI_NET` | Specific network ID or name (optional) | No |
-| `--output` | - | Output file path | No (default: routes.txt) |
-| `--format` | - | Output format: text, json, xml, csv | No (default: text) |
-| `--loglevel` | - | Log level: debug, info, error | No (default: error) |
-| `--access` | - | Show available organizations and networks | No |
-| `--all` | - | Backup all networks to separate timestamped files | No |
+| `-apikey` | `MERAKI_APIKEY` | Meraki API key | Yes |
+| `-org` | `MERAKI_ORG` | Meraki organization ID | Yes* |
+| `-network` | `MERAKI_NET` | Specific network ID or name (optional) | No |
+| `-output` | - | Output file path | No (default: stdout) |
+| `-format` | - | Output format: text, json, xml, csv | No (default: text) |
+| `-loglevel` | - | Log level: debug, info, error | No (default: error) |
+| `-all` | - | Backup all networks to separate timestamped files | No |
 
-*Organization is not required when using `--access` flag.
-*The `--all` and `--network` flags cannot be used together.
+**Commands (positional arguments):**
+- `access` - Show available organizations and networks
+- `route-tables` - Output route tables
+- `licenses` - Output license information  
+- `down` - Output all devices that are down/offline
+
+*Organization is not required when using `access` command.
+*The `-all` and `-network` options cannot be used together.
 
 ### Examples
 
 #### Basic usage with API key
 ```bash
-./meraki-info --apikey your-api-key --org your-org-id
+./meraki-info -apikey your-api-key -org your-org-id route-tables
 ```
 
 #### Check available organizations and networks
 ```bash
 # Show all accessible organizations and networks
-./meraki-info --access --apikey your-api-key
+./meraki-info -apikey your-api-key access
 
 # Show networks for a specific organization only
-./meraki-info --access --apikey your-api-key --org "766096"
-./meraki-info --access --apikey your-api-key --org "City of Gardena"
+./meraki-info -apikey your-api-key -org "123456" access
+./meraki-info -apikey your-api-key -org "Your Organization" access
 ```
 
 #### Using environment variables
 ```bash
 export MERAKI_APIKEY="your-api-key"
 export MERAKI_ORG="your-org-id"
-./meraki-info
+./meraki-info route-tables
+```
+
+#### Output license information
+```bash
+./meraki-info -apikey your-api-key -org your-org-id licenses
+```
+
+#### Output down devices
+```bash
+./meraki-info -apikey your-api-key -org your-org-id down
 ```
 
 #### Backup specific network to JSON
 ```bash
-./meraki-info --apikey your-api-key --org your-org-id --network net-id --output routes.json --format json
+./meraki-info -apikey your-api-key -org your-org-id -network net-id -output routes.json -format json route-tables
 ```
 
 #### Backup all networks to separate files
 ```bash
 # Backup all networks in organization to separate timestamped files (text format)
-./meraki-info --apikey your-api-key --org your-org-id --all
+./meraki-info -apikey your-api-key -org your-org-id -all route-tables
 
 # Backup all networks to JSON files
-./meraki-info --apikey your-api-key --org your-org-id --all --format json
+./meraki-info -apikey your-api-key -org your-org-id -all -format json route-tables
 
 # Backup all networks to CSV files  
-./meraki-info --apikey your-api-key --org your-org-id --all --format csv
+./meraki-info -apikey your-api-key -org your-org-id -all -format csv route-tables
 ```
 
 #### Network identification
 ```bash
 # Use network ID
-./meraki-info --apikey your-api-key --org your-org-id --network "L_660903245316649608"
+./meraki-info -apikey your-api-key -org your-org-id -network "L_123456789012345678" route-tables
 
 # Use network name (must be unique within organization)
-./meraki-info --apikey your-api-key --org your-org-id --network "City Core"
+./meraki-info -apikey your-api-key -org your-org-id -network "Main Network" route-tables
 ```
 
 #### Custom output filename
 ```bash
 # Specify custom output filename
-./meraki-info --apikey your-api-key --org your-org-id --network "City Core" --output my-routes.txt
-
-# Use default auto-generated filename: <org>-<network>-RouteTables-yyyy-mm-dd-hh-mm-ss
-./meraki-info --apikey your-api-key --org your-org-id --network "City Core"
+./meraki-info -apikey your-api-key -org your-org-id -network "Main Network" -output my-routes.txt route-tables
 
 # Output to stdout (useful for piping)
-./meraki-info --apikey your-api-key --org your-org-id --network "City Core" --output "-"
+./meraki-info -apikey your-api-key -org your-org-id -network "Main Network" -output "-" route-tables
 
 # Pipe JSON output to jq for processing
-./meraki-info --apikey your-api-key --org your-org-id --network "City Core" --output "-" --format json | jq '.[] | .name'
+./meraki-info -apikey your-api-key -org your-org-id -network "Main Network" -output "-" -format json route-tables | jq '.[] | .name'
 
 # Save CSV output with custom processing
-./meraki-info --apikey your-api-key --org your-org-id --network "City Core" --output "-" --format csv > processed-routes.csv
+./meraki-info -apikey your-api-key -org your-org-id -network "Main Network" -output "-" -format csv route-tables > processed-routes.csv
 ```
 
 #### Enable debug logging
 ```bash
-./meraki-info --apikey your-api-key --org your-org-id --loglevel debug
+./meraki-info -apikey your-api-key -org your-org-id -loglevel debug route-tables
 ```
 
 ## Authentication
@@ -128,7 +140,7 @@ export MERAKI_ORG="your-org-id"
 1. Log in to the Meraki Dashboard
 2. Navigate to Organization > Settings > Dashboard API access
 3. Generate an API key
-4. Use the key with the `--apikey` flag or `MERAKI_APIKEY` environment variable
+4. Use the key with the `-apikey` option or `MERAKI_APIKEY` environment variable
 
 ### OAuth2 (For production applications)
 The application supports OAuth2 authentication for production use cases. See the Meraki API documentation for OAuth2 setup instructions.
@@ -152,63 +164,69 @@ Comma-separated values format for spreadsheet applications.
 ### Single Network Backup
 When backing up a single network:
 
-**When `--output` is specified**: Uses the exact filename provided.
+**When `-output` is specified**: Uses the exact filename provided.
 ```bash
-./meraki-info --apikey key --org 123 --network "City Core" --output "my-backup.txt"
+./meraki-info -apikey key -org 123 -network "City Core" -output "my-backup.txt" route-tables
 # Creates: my-backup.txt
 ```
 
-**When `--output` is NOT specified**: Auto-generates filename in format:
+**When `-output` is NOT specified or set to "default"**: Auto-generates filename in format:
 ```
-<OrganizationName>-<NetworkName>-RouteTables-<YYYY-MM-DD-HH-MM-SS>.<extension>
-```
-
-Examples:
-- `City_of_Gardena-City_Core-RouteTables-2025-07-15-18-10-17.txt`
-- `City_of_Gardena-CoG_CityHall_-_z3-RouteTables-2025-07-15-18-12-15.csv`
-- `MyCompany-MainOffice-RouteTables-2025-07-15-14-30-45.json`
-
-### All Networks Backup (`--all` flag)
-When using the `--all` flag, each network gets its own file with the following naming convention:
-```
-<OrganizationName>-RouteTables-<YYYY-MM-DD-HH-MM-SS>-<NetworkName>.<extension>
+RouteTables-<OrganizationName>-<NetworkName>-<RFC3339 datetime>.<extension>
 ```
 
 Examples:
-- `City_of_Gardena-RouteTables-2025-07-15-17-59-21-City_Core.txt`
-- `City_of_Gardena-RouteTables-2025-07-15-18-01-01-CoG_CityHall_-_z3.json`
-- `MyCompany-RouteTables-2025-07-15-14-30-45-MainOffice.csv`
+- `RouteTables-City_of_Gardena-City_Core-2025-07-15T18-10-17-07-00.txt`
+- `Licenses-YourOrganization-YourNetwork-2025-07-15T18-12-15-07-00.csv`
+- `Down-MyCompany-MainOffice-2025-07-15T14-30-45-07-00.json`
+
+### All Networks Backup (`-all` option)
+When using the `-all` option, each network gets its own file with the following naming convention:
+```
+<CommandType>-<OrganizationName>-<NetworkName>-<RFC3339 datetime>.<extension>
+```
+
+Examples:
+- `RouteTables-City_of_Gardena-City_Core-2025-07-15T17-59-21-07-00.txt`
+- `Licenses-YourOrganization-YourNetwork-2025-07-15T18-01-01-07-00.json`
+- `Down-MyCompany-MainOffice-2025-07-15T14-30-45-07-00.csv`
 
 **Note**: Special characters in organization and network names are replaced with underscores for filesystem compatibility.
 
 ### Stdout Output
-When `--output "-"` is specified, the route table is sent to stdout instead of a file. This enables:
+When `-output "-"` is specified, the output is sent to stdout instead of a file. This enables:
 
 **Piping to other tools:**
 ```bash
 # Extract route names using jq
-./meraki-info --org 123 --network "Main" --output "-" --format json | jq '.[] | .name'
+./meraki-info -org 123 -network "Main" -output "-" -format json route-tables | jq '.[] | .name'
 
 # Count total routes
-./meraki-info --org 123 --network "Main" --output "-" --format json | jq '. | length'
+./meraki-info -org 123 -network "Main" -output "-" -format json route-tables | jq '. | length'
 
 # Filter enabled routes only
-./meraki-info --org 123 --network "Main" --output "-" --format json | jq '.[] | select(.enabled == true)'
+./meraki-info -org 123 -network "Main" -output "-" -format json route-tables | jq '.[] | select(.enabled == true)'
+
+# Get license information in JSON
+./meraki-info -org 123 -output "-" -format json licenses | jq '.[] | select(.state == "active")'
+
+# Check down devices
+./meraki-info -org 123 -output "-" -format json down | jq '.[] | .name'
 ```
 
 **Processing CSV data:**
 ```bash
 # Save to file with custom name
-./meraki-info --org 123 --network "Main" --output "-" --format csv > custom-name.csv
+./meraki-info -org 123 -network "Main" -output "-" -format csv route-tables > custom-name.csv
 
 # Process with awk
-./meraki-info --org 123 --network "Main" --output "-" --format csv | awk -F',' '{print $2, $3}'
+./meraki-info -org 123 -network "Main" -output "-" -format csv route-tables | awk -F',' '{print $2, $3}'
 ```
 
 **Integration with scripts:**
 ```bash
 #!/bin/bash
-ROUTES=$(./meraki-info --org 123 --network "Main" --output "-" --format json)
+ROUTES=$(./meraki-info -org 123 -network "Main" -output "-" -format json route-tables)
 echo "$ROUTES" | jq '.[] | select(.subnet | contains("192.168"))'
 ```
 
@@ -220,7 +238,7 @@ echo "$ROUTES" | jq '.[] | select(.subnet | contains("192.168"))'
 - `MERAKI_NET`: Network ID (optional)
 
 ### Configuration Priority
-1. Command line flags (highest priority)
+1. Command line options (highest priority)
 2. Environment variables
 3. Default values (lowest priority)
 

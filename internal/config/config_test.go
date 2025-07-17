@@ -28,7 +28,7 @@ func TestParseConfig(t *testing.T) {
 
 		// Reset flags and set test args
 		flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
-		os.Args = []string{"meraki-info", "--access"}
+		os.Args = []string{"meraki-info", "access"}
 
 		_, err := parseConfigWithValidation()
 		if err == nil {
@@ -39,46 +39,62 @@ func TestParseConfig(t *testing.T) {
 		}
 	})
 
-	t.Run("missing required action flag should return error", func(t *testing.T) {
-		// Set API key but no action flags
+	t.Run("missing required command argument should return error", func(t *testing.T) {
+		// Set API key but no command arguments
 		os.Setenv("MERAKI_APIKEY", "test-key")
 
 		// Reset flags and set test args
 		flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
-		os.Args = []string{"meraki-info", "--org", "test-org"}
+		os.Args = []string{"meraki-info", "-org", "test-org"}
 
 		_, err := parseConfigWithValidation()
 		if err == nil {
-			t.Error("Expected error when no action flag is provided")
+			t.Error("Expected error when no command argument is provided")
 		}
-		if err != nil && !strings.Contains(err.Error(), "one of the parameters") {
-			t.Errorf("Expected action flag error, got: %v", err)
+		if err != nil && !strings.Contains(err.Error(), "one of the arguments") {
+			t.Errorf("Expected command argument error, got: %v", err)
 		}
 	})
 
-	t.Run("multiple action flags should return error", func(t *testing.T) {
+	t.Run("multiple command arguments should return error", func(t *testing.T) {
 		os.Setenv("MERAKI_APIKEY", "test-key")
 
-		// Reset flags and set test args with multiple action flags
+		// Reset flags and set test args with multiple command arguments
 		flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
-		os.Args = []string{"meraki-info", "--access", "--licenses", "--org", "test-org"}
+		os.Args = []string{"meraki-info", "-org", "test-org", "access", "licenses"}
 
 		_, err := parseConfigWithValidation()
 		if err == nil {
-			t.Error("Expected error when multiple action flags are provided")
+			t.Error("Expected error when multiple command arguments are provided")
 		}
-		if err != nil && !strings.Contains(err.Error(), "only one of") {
-			t.Errorf("Expected multiple action flags error, got: %v", err)
+		if err != nil && !strings.Contains(err.Error(), "only one command argument is allowed") {
+			t.Errorf("Expected multiple command arguments error, got: %v", err)
 		}
 	})
 
-	t.Run("valid access mode config", func(t *testing.T) {
+	t.Run("invalid command argument should return error", func(t *testing.T) {
+		os.Setenv("MERAKI_APIKEY", "test-key")
+
+		// Reset flags and set test args with invalid command
+		flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
+		os.Args = []string{"meraki-info", "-org", "test-org", "invalid-command"}
+
+		_, err := parseConfigWithValidation()
+		if err == nil {
+			t.Error("Expected error when invalid command argument is provided")
+		}
+		if err != nil && !strings.Contains(err.Error(), "invalid command") {
+			t.Errorf("Expected invalid command error, got: %v", err)
+		}
+	})
+
+	t.Run("valid access command config", func(t *testing.T) {
 		os.Setenv("MERAKI_APIKEY", "test-key")
 		os.Setenv("MERAKI_ORG", "test-org")
 
 		// Reset flags and set test args
 		flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
-		os.Args = []string{"meraki-info", "--access"}
+		os.Args = []string{"meraki-info", "access"}
 
 		cfg, err := parseConfigWithValidation()
 		if err != nil {
@@ -91,53 +107,62 @@ func TestParseConfig(t *testing.T) {
 		if cfg.Organization != "test-org" {
 			t.Errorf("Expected Organization 'test-org', got '%s'", cfg.Organization)
 		}
-		if !cfg.ShowAccess {
-			t.Error("Expected ShowAccess to be true")
-		}
-		if cfg.ShowLicenses || cfg.ShowRouteTables {
-			t.Error("Expected other action flags to be false")
+		if cfg.Command != "access" {
+			t.Errorf("Expected Command 'access', got '%s'", cfg.Command)
 		}
 	})
 
-	t.Run("valid licenses mode config", func(t *testing.T) {
+	t.Run("valid licenses command config", func(t *testing.T) {
 		os.Setenv("MERAKI_APIKEY", "test-key")
 		os.Setenv("MERAKI_ORG", "test-org")
 
 		// Reset flags and set test args
 		flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
-		os.Args = []string{"meraki-info", "--licenses", "--org", "test-org"}
+		os.Args = []string{"meraki-info", "-org", "test-org", "licenses"}
 
 		cfg, err := parseConfigWithValidation()
 		if err != nil {
 			t.Errorf("Expected no error, got: %v", err)
 		}
 
-		if !cfg.ShowLicenses {
-			t.Error("Expected ShowLicenses to be true")
-		}
-		if cfg.ShowAccess || cfg.ShowRouteTables {
-			t.Error("Expected other action flags to be false")
+		if cfg.Command != "licenses" {
+			t.Errorf("Expected Command 'licenses', got '%s'", cfg.Command)
 		}
 	})
 
-	t.Run("valid route-tables mode config", func(t *testing.T) {
+	t.Run("valid route-tables command config", func(t *testing.T) {
 		os.Setenv("MERAKI_APIKEY", "test-key")
 		os.Setenv("MERAKI_ORG", "test-org")
 
 		// Reset flags and set test args
 		flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
-		os.Args = []string{"meraki-info", "--route-tables", "--org", "test-org"}
+		os.Args = []string{"meraki-info", "-org", "test-org", "route-tables"}
 
 		cfg, err := parseConfigWithValidation()
 		if err != nil {
 			t.Errorf("Expected no error, got: %v", err)
 		}
 
-		if !cfg.ShowRouteTables {
-			t.Error("Expected ShowRouteTables to be true")
+		if cfg.Command != "route-tables" {
+			t.Errorf("Expected Command 'route-tables', got '%s'", cfg.Command)
 		}
-		if cfg.ShowAccess || cfg.ShowLicenses {
-			t.Error("Expected other action flags to be false")
+	})
+
+	t.Run("valid down command config", func(t *testing.T) {
+		os.Setenv("MERAKI_APIKEY", "test-key")
+		os.Setenv("MERAKI_ORG", "test-org")
+
+		// Reset flags and set test args
+		flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
+		os.Args = []string{"meraki-info", "-org", "test-org", "down"}
+
+		cfg, err := parseConfigWithValidation()
+		if err != nil {
+			t.Errorf("Expected no error, got: %v", err)
+		}
+
+		if cfg.Command != "down" {
+			t.Errorf("Expected Command 'down', got '%s'", cfg.Command)
 		}
 	})
 
@@ -146,46 +171,40 @@ func TestParseConfig(t *testing.T) {
 
 		// Reset flags and set test args
 		flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
-		os.Args = []string{"meraki-info", "--licenses", "--org", "test-org", "--network", "test-net", "--all"}
+		os.Args = []string{"meraki-info", "-org", "test-org", "-network", "test-net", "-all", "licenses"}
 
 		_, err := parseConfigWithValidation()
 		if err == nil {
-			t.Error("Expected error when using --all with --network")
+			t.Error("Expected error when using -all with -network")
 		}
-		if err != nil && !strings.Contains(err.Error(), "cannot specify --network when using --all") {
-			t.Errorf("Expected --all/--network conflict error, got: %v", err)
+		if err != nil && !strings.Contains(err.Error(), "cannot specify -network when using -all") {
+			t.Errorf("Expected -all/-network conflict error, got: %v", err)
 		}
 	})
 
-	t.Run("all flag with stdout output should return error", func(t *testing.T) {
+	t.Run("all flag with stdout output should succeed", func(t *testing.T) {
 		os.Setenv("MERAKI_APIKEY", "test-key")
 
 		// Reset flags and set test args
 		flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
-		os.Args = []string{"meraki-info", "--licenses", "--org", "test-org", "--all", "--output", "-"}
+		os.Args = []string{"meraki-info", "-org", "test-org", "-all", "-output", "-", "licenses"}
 
 		_, err := parseConfigWithValidation()
-		if err == nil {
-			t.Error("Expected error when using --all with stdout output")
-		}
-		if err != nil && !strings.Contains(err.Error(), "cannot use --output '-' or omit --output (stdout) with --all") {
-			t.Errorf("Expected --all/stdout conflict error, got: %v", err)
+		if err != nil {
+			t.Errorf("Expected no error when using -all with stdout output, got: %v", err)
 		}
 	})
 
-	t.Run("all flag with empty output should return error", func(t *testing.T) {
+	t.Run("all flag with empty output should succeed", func(t *testing.T) {
 		os.Setenv("MERAKI_APIKEY", "test-key")
 
 		// Reset flags and set test args
 		flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
-		os.Args = []string{"meraki-info", "--licenses", "--org", "test-org", "--all"}
+		os.Args = []string{"meraki-info", "-org", "test-org", "-all", "licenses"}
 
 		_, err := parseConfigWithValidation()
-		if err == nil {
-			t.Error("Expected error when using --all with empty output (stdout)")
-		}
-		if err != nil && !strings.Contains(err.Error(), "cannot use --output '-' or omit --output (stdout) with --all") {
-			t.Errorf("Expected --all/empty output conflict error, got: %v", err)
+		if err != nil {
+			t.Errorf("Expected no error when using -all with empty output (stdout), got: %v", err)
 		}
 	})
 
@@ -194,14 +213,14 @@ func TestParseConfig(t *testing.T) {
 
 		// Reset flags and set test args
 		flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
-		os.Args = []string{"meraki-info", "--access", "--all", "--output", "default"}
+		os.Args = []string{"meraki-info", "-all", "-output", "test.txt", "access"}
 
 		_, err := parseConfigWithValidation()
 		if err == nil {
-			t.Error("Expected error when using --access with --all")
+			t.Error("Expected error when using access command with -all")
 		}
-		if err != nil && !strings.Contains(err.Error(), "cannot use --all with --access") {
-			t.Errorf("Expected --access/--all conflict error, got: %v", err)
+		if err != nil && !strings.Contains(err.Error(), "cannot use -all with access command") {
+			t.Errorf("Expected access/-all conflict error, got: %v", err)
 		}
 	})
 }
