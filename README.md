@@ -43,7 +43,7 @@ go build -o meraki-info
 | `-output` | - | Output file path | No (default: stdout) |
 | `-format` | - | Output format: text, json, xml, csv | No (default: text) |
 | `-loglevel` | - | Log level: debug, info, error | No (default: error) |
-| `-all` | - | Backup all networks to separate timestamped files | No |
+| `-all` | - | Get info for all networks to separate timestamped files | No |
 
 **Commands (positional arguments):**
 - `access` - Show available organizations and networks
@@ -88,20 +88,20 @@ export MERAKI_ORG="your-org-id"
 ./meraki-info -apikey your-api-key -org your-org-id down
 ```
 
-#### Backup specific network to JSON
+#### Get info for specific network to JSON
 ```bash
 ./meraki-info -apikey your-api-key -org your-org-id -network net-id -output routes.json -format json route-tables
 ```
 
-#### Backup all networks to separate files
+#### Get info for all networks to separate files
 ```bash
-# Backup all networks in organization to separate timestamped files (text format)
+# Get info for all networks in organization to separate timestamped files (text format)
 ./meraki-info -apikey your-api-key -org your-org-id -all route-tables
 
-# Backup all networks to JSON files
+# Get info for all networks to JSON files
 ./meraki-info -apikey your-api-key -org your-org-id -all -format json route-tables
 
-# Backup all networks to CSV files  
+# Get info for all networks to CSV files  
 ./meraki-info -apikey your-api-key -org your-org-id -all -format csv route-tables
 ```
 
@@ -161,13 +161,13 @@ Comma-separated values format for spreadsheet applications.
 
 ## File Naming
 
-### Single Network Backup
+### Single Network Info
 When backing up a single network:
 
 **When `-output` is specified**: Uses the exact filename provided.
 ```bash
-./meraki-info -apikey key -org 123 -network "City Core" -output "my-backup.txt" route-tables
-# Creates: my-backup.txt
+./meraki-info -apikey key -org 123 -network "City Core" -output "my-info.txt" route-tables
+# Creates: my-info.txt
 ```
 
 **When `-output` is NOT specified or set to "default"**: Auto-generates filename in format:
@@ -180,7 +180,7 @@ Examples:
 - `Licenses-YourOrganization-YourNetwork-2025-07-15T18-12-15-07-00.csv`
 - `Down-MyCompany-MainOffice-2025-07-15T14-30-45-07-00.json`
 
-### All Networks Backup (`-all` option)
+### All Networks Info (`-all` option)
 When using the `-all` option, each network gets its own file with the following naming convention:
 ```
 <CommandType>-<OrganizationName>-<NetworkName>-<RFC3339 datetime>.<extension>

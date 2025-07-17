@@ -47,48 +47,48 @@ func main() {
 		return
 
 	case "route-tables":
-		if cfg.BackupAll {
-			err := backupAllNetworkRoutes(client, cfg)
+		if cfg.InfoAll {
+			err := infoAllNetworkRoutes(client, cfg)
 			if err != nil {
-				slog.Error("Failed to backup all network route tables", "error", err)
+				slog.Error("Failed to get info for all network route tables", "error", err)
 				os.Exit(1)
 			}
 		} else {
-			err := backupSingleNetworkRoutes(client, cfg)
+			err := infoSingleNetworkRoutes(client, cfg)
 			if err != nil {
-				slog.Error("Failed to backup route tables", "error", err)
+				slog.Error("Failed to get info for route tables", "error", err)
 				os.Exit(1)
 			}
 		}
 		return
 
 	case "licenses":
-		if cfg.BackupAll {
-			err := backupAllNetworkLicenses(client, cfg)
+		if cfg.InfoAll {
+			err := infoAllNetworkLicenses(client, cfg)
 			if err != nil {
-				slog.Error("Failed to backup all network licenses", "error", err)
+				slog.Error("Failed to get info for all network licenses", "error", err)
 				os.Exit(1)
 			}
 		} else {
-			err := backupSingleNetworkLicenses(client, cfg)
+			err := infoSingleNetworkLicenses(client, cfg)
 			if err != nil {
-				slog.Error("Failed to backup licenses", "error", err)
+				slog.Error("Failed to collect license info", "error", err)
 				os.Exit(1)
 			}
 		}
 		return
 
 	case "down":
-		if cfg.BackupAll {
-			err := backupAllNetworkDownDevices(client, cfg)
+		if cfg.InfoAll {
+			err := infoAllNetworkDownDevices(client, cfg)
 			if err != nil {
-				slog.Error("Failed to backup all network down devices", "error", err)
+				slog.Error("Failed to get info for all network down devices", "error", err)
 				os.Exit(1)
 			}
 		} else {
-			err := backupSingleNetworkDownDevices(client, cfg)
+			err := infoSingleNetworkDownDevices(client, cfg)
 			if err != nil {
-				slog.Error("Failed to backup down devices", "error", err)
+				slog.Error("Failed to collect down device info", "error", err)
 				os.Exit(1)
 			}
 		}
@@ -105,8 +105,8 @@ func main() {
 	}
 }
 
-// backupSingleNetworkRoutes backs up routes for a single network
-func backupSingleNetworkRoutes(client *meraki.Client, cfg *config.Config) error {
+// infoSingleNetworkRoutes collects routes for a single network
+func infoSingleNetworkRoutes(client *meraki.Client, cfg *config.Config) error {
 	// Fetch routes for single network
 	routes, err := client.GetRoutes(cfg.Organization, cfg.Network)
 	if err != nil {
@@ -140,13 +140,13 @@ func backupSingleNetworkRoutes(client *meraki.Client, cfg *config.Config) error 
 	if err := outputWriter.WriteToFile(routes, outputFile); err != nil {
 		return fmt.Errorf("failed to write output: %w", err)
 	}
-	slog.Info("Route tables backup completed successfully", "output_file", outputFile)
+	slog.Info("Route tables info collection completed successfully", "output_file", outputFile)
 
 	return nil
 }
 
-// backupSingleNetworkLicenses backs up licenses for a single network/organization
-func backupSingleNetworkLicenses(client *meraki.Client, cfg *config.Config) error {
+// infoSingleNetworkLicenses collects info for licenses for a single network/organization
+func infoSingleNetworkLicenses(client *meraki.Client, cfg *config.Config) error {
 	// Fetch licenses for the organization
 	licenses, err := client.GetLicenses(cfg.Organization)
 	if err != nil {
@@ -180,13 +180,13 @@ func backupSingleNetworkLicenses(client *meraki.Client, cfg *config.Config) erro
 	if err := outputWriter.WriteToFile(licenses, outputFile); err != nil {
 		return fmt.Errorf("failed to write output: %w", err)
 	}
-	slog.Info("Licenses backup completed successfully", "output_file", outputFile)
+	slog.Info("Licenses info collection completed successfully", "output_file", outputFile)
 
 	return nil
 }
 
-// backupSingleNetworkDownDevices backs up down devices for a single network
-func backupSingleNetworkDownDevices(client *meraki.Client, cfg *config.Config) error {
+// infoSingleNetworkDownDevices collects info for down devices for a single network
+func infoSingleNetworkDownDevices(client *meraki.Client, cfg *config.Config) error {
 	// Fetch down devices for single network
 	downDevices, err := client.GetDownDevices(cfg.Organization, cfg.Network)
 	if err != nil {
@@ -220,41 +220,41 @@ func backupSingleNetworkDownDevices(client *meraki.Client, cfg *config.Config) e
 	if err := outputWriter.WriteToFile(downDevices, outputFile); err != nil {
 		return fmt.Errorf("failed to write output: %w", err)
 	}
-	slog.Info("Down devices backup completed successfully", "output_file", outputFile)
+	slog.Info("Down devices info collection completed successfully", "output_file", outputFile)
 
 	return nil
 }
 
-// backupAllNetworkDownDevices backs up down devices for all networks in the organization(s) to separate files
-func backupAllNetworkDownDevices(client *meraki.Client, cfg *config.Config) error {
+// infoAllNetworkDownDevices collects info for down devices for all networks in the organization(s) to separate files
+func infoAllNetworkDownDevices(client *meraki.Client, cfg *config.Config) error {
 	if cfg.Organization != "" {
-		// Backup all networks in a specific organization
-		return backupOrganizationNetworkDownDevices(cfg, client, cfg.Organization)
+		// Get info for all networks in a specific organization
+		return infoOrganizationNetworkDownDevices(cfg, client, cfg.Organization)
 	} else {
-		// Backup all networks in all organizations
-		return backupAllOrganizationDownDevices(cfg, client)
+		// Get info for all networks in all organizations
+		return infoAllOrganizationDownDevices(cfg, client)
 	}
 }
 
-// backupAllNetworkRoutes backs up routes for all networks in the organization(s) to separate files
-func backupAllNetworkRoutes(client *meraki.Client, cfg *config.Config) error {
+// infoAllNetworkRoutes collects info for routes for all networks in the organization(s) to separate files
+func infoAllNetworkRoutes(client *meraki.Client, cfg *config.Config) error {
 	if cfg.Organization != "" {
-		// Backup all networks in a specific organization
-		return backupOrganizationNetworkRoutes(cfg, client, cfg.Organization)
+		// Get info for all networks in a specific organization
+		return infoOrganizationNetworkRoutes(cfg, client, cfg.Organization)
 	} else {
-		// Backup all networks in all organizations
-		return backupAllOrganizationRoutes(cfg, client)
+		// Get info for all networks in all organizations
+		return infoAllOrganizationRoutes(cfg, client)
 	}
 }
 
-// backupAllNetworkLicenses backs up licenses for all networks in the organization(s) to separate files
-func backupAllNetworkLicenses(client *meraki.Client, cfg *config.Config) error {
+// infoAllNetworkLicenses collects info for licenses for all networks in the organization(s) to separate files
+func infoAllNetworkLicenses(client *meraki.Client, cfg *config.Config) error {
 	if cfg.Organization != "" {
-		// Backup all networks in a specific organization
-		return backupOrganizationNetworkLicenses(cfg, client, cfg.Organization)
+		// Get info for all networks in a specific organization
+		return infoOrganizationNetworkLicenses(cfg, client, cfg.Organization)
 	} else {
-		// Backup all networks in all organizations
-		return backupAllOrganizationLicenses(cfg, client)
+		// Get info for all networks in all organizations
+		return infoAllOrganizationLicenses(cfg, client)
 	}
 }
 
@@ -457,29 +457,29 @@ func showAccessInformation(client *meraki.Client, orgFilter string) {
 	if len(orgs) > 0 {
 		if orgFilter != "" {
 			// When filtering by org, show specific examples for that org
-			fmt.Printf("   # Backup routes from organization '%s':\n", orgs[0].Name)
+			fmt.Printf("   # Get route info from organization '%s':\n", orgs[0].Name)
 			fmt.Printf("   ./meraki-routes-backup --apikey \"your-key\" --org \"%s\"\n", orgs[0].ID)
 
 			networks, err := client.GetOrganizationNetworks(orgs[0].ID)
 			if err == nil && len(networks) > 0 {
-				fmt.Printf("   # Backup routes from specific network in '%s':\n", orgs[0].Name)
+				fmt.Printf("   # Get route info from specific network in '%s':\n", orgs[0].Name)
 				fmt.Printf("   ./meraki-routes-backup --apikey \"your-key\" --org \"%s\" --network \"%s\"\n", orgs[0].ID, networks[0].ID)
-				fmt.Printf("   # Backup all networks in '%s' to separate files:\n", orgs[0].Name)
+				fmt.Printf("   # Get info for all networks in '%s' to separate files:\n", orgs[0].Name)
 				fmt.Printf("   ./meraki-routes-backup --apikey \"your-key\" --org \"%s\" --all\n", orgs[0].ID)
 				fmt.Printf("   # View access info for this organization only:\n")
 				fmt.Printf("   ./meraki-routes-backup --access --apikey \"your-key\" --org \"%s\"\n", orgs[0].ID)
 			}
 		} else {
 			// General examples when showing all orgs
-			fmt.Printf("   # Backup routes from a specific organization:\n")
+			fmt.Printf("   # Get route info from a specific organization:\n")
 			fmt.Printf("   ./meraki-routes-backup --apikey \"your-key\" --org \"%s\"\n", orgs[0].ID)
 
 			networks, err := client.GetOrganizationNetworks(orgs[0].ID)
 			if err == nil && len(networks) > 0 {
-				fmt.Printf("   # Backup routes from a specific network:\n")
+				fmt.Printf("   # Get route info from a specific network:\n")
 				fmt.Printf("   ./meraki-routes-backup --apikey \"your-key\" --org \"%s\" --network \"%s\"\n", orgs[0].ID, networks[0].ID)
 			}
-			fmt.Printf("   # Backup all networks to separate files:\n")
+			fmt.Printf("   # Get info for all networks to separate files:\n")
 			fmt.Printf("   ./meraki-routes-backup --apikey \"your-key\" --org \"%s\" --all\n", orgs[0].ID)
 			fmt.Printf("   # View access info for specific organization:\n")
 			fmt.Printf("   ./meraki-routes-backup --access --apikey \"your-key\" --org \"%s\"\n", orgs[0].ID)
@@ -496,8 +496,8 @@ func formatBool(value bool, trueStr, falseStr string) string {
 	return falseStr
 }
 
-// backupOrganizationNetworkRoutes backs up routes for all networks in an organization
-func backupOrganizationNetworkRoutes(cfg *config.Config, client *meraki.Client, organizationID string) error {
+// infoOrganizationNetworkRoutes collects info for routes for all networks in an organization
+func infoOrganizationNetworkRoutes(cfg *config.Config, client *meraki.Client, organizationID string) error {
 	networks, err := client.GetOrganizationNetworks(organizationID)
 	if err != nil {
 		return fmt.Errorf("error getting organization networks: %w", err)
@@ -519,9 +519,9 @@ func backupOrganizationNetworkRoutes(cfg *config.Config, client *meraki.Client, 
 			networkCfg.OutputFile = outputFile
 		}
 
-		err := backupSingleNetworkRoutes(client, &networkCfg)
+		err := infoSingleNetworkRoutes(client, &networkCfg)
 		if err != nil {
-			slog.Error("Failed to backup routes for network", "network", network.Name, "error", err)
+			slog.Error("Failed to collect route info for network", "network", network.Name, "error", err)
 			continue
 		}
 	}
@@ -529,8 +529,8 @@ func backupOrganizationNetworkRoutes(cfg *config.Config, client *meraki.Client, 
 	return nil
 }
 
-// backupOrganizationNetworkLicenses backs up licenses for all networks in an organization
-func backupOrganizationNetworkLicenses(cfg *config.Config, client *meraki.Client, organizationID string) error {
+// infoOrganizationNetworkLicenses collects info for licenses for all networks in an organization
+func infoOrganizationNetworkLicenses(cfg *config.Config, client *meraki.Client, organizationID string) error {
 	networks, err := client.GetOrganizationNetworks(organizationID)
 	if err != nil {
 		return fmt.Errorf("error getting organization networks: %w", err)
@@ -552,9 +552,9 @@ func backupOrganizationNetworkLicenses(cfg *config.Config, client *meraki.Client
 			networkCfg.OutputFile = outputFile
 		}
 
-		err := backupSingleNetworkLicenses(client, &networkCfg)
+		err := infoSingleNetworkLicenses(client, &networkCfg)
 		if err != nil {
-			slog.Error("Failed to backup licenses for network", "network", network.Name, "error", err)
+			slog.Error("Failed to collect license info for network", "network", network.Name, "error", err)
 			continue
 		}
 	}
@@ -562,8 +562,8 @@ func backupOrganizationNetworkLicenses(cfg *config.Config, client *meraki.Client
 	return nil
 }
 
-// backupAllOrganizationRoutes backs up routes for all organizations
-func backupAllOrganizationRoutes(cfg *config.Config, client *meraki.Client) error {
+// infoAllOrganizationRoutes collects info for routes for all organizations
+func infoAllOrganizationRoutes(cfg *config.Config, client *meraki.Client) error {
 	organizations, err := client.GetOrganizations()
 	if err != nil {
 		return fmt.Errorf("error getting organizations: %w", err)
@@ -571,9 +571,9 @@ func backupAllOrganizationRoutes(cfg *config.Config, client *meraki.Client) erro
 
 	for _, org := range organizations {
 		slog.Info("Processing organization for route tables", "org", org.Name, "id", org.ID)
-		err := backupOrganizationNetworkRoutes(cfg, client, org.ID)
+		err := infoOrganizationNetworkRoutes(cfg, client, org.ID)
 		if err != nil {
-			slog.Error("Failed to backup routes for organization", "org", org.Name, "error", err)
+			slog.Error("Failed to collect route info for organization", "org", org.Name, "error", err)
 			continue
 		}
 	}
@@ -581,8 +581,8 @@ func backupAllOrganizationRoutes(cfg *config.Config, client *meraki.Client) erro
 	return nil
 }
 
-// backupAllOrganizationLicenses backs up licenses for all organizations
-func backupAllOrganizationLicenses(cfg *config.Config, client *meraki.Client) error {
+// infoAllOrganizationLicenses collects info for licenses for all organizations
+func infoAllOrganizationLicenses(cfg *config.Config, client *meraki.Client) error {
 	organizations, err := client.GetOrganizations()
 	if err != nil {
 		return fmt.Errorf("error getting organizations: %w", err)
@@ -590,9 +590,9 @@ func backupAllOrganizationLicenses(cfg *config.Config, client *meraki.Client) er
 
 	for _, org := range organizations {
 		slog.Info("Processing organization for licenses", "org", org.Name, "id", org.ID)
-		err := backupOrganizationNetworkLicenses(cfg, client, org.ID)
+		err := infoOrganizationNetworkLicenses(cfg, client, org.ID)
 		if err != nil {
-			slog.Error("Failed to backup licenses for organization", "org", org.Name, "error", err)
+			slog.Error("Failed to collect license info for organization", "org", org.Name, "error", err)
 			continue
 		}
 	}
@@ -600,8 +600,8 @@ func backupAllOrganizationLicenses(cfg *config.Config, client *meraki.Client) er
 	return nil
 }
 
-// backupOrganizationNetworkDownDevices backs up down devices for all networks in an organization
-func backupOrganizationNetworkDownDevices(cfg *config.Config, client *meraki.Client, organizationID string) error {
+// infoOrganizationNetworkDownDevices collects info for down devices for all networks in an organization
+func infoOrganizationNetworkDownDevices(cfg *config.Config, client *meraki.Client, organizationID string) error {
 	networks, err := client.GetOrganizationNetworks(organizationID)
 	if err != nil {
 		return fmt.Errorf("error getting organization networks: %w", err)
@@ -623,9 +623,9 @@ func backupOrganizationNetworkDownDevices(cfg *config.Config, client *meraki.Cli
 			networkCfg.OutputFile = outputFile
 		}
 
-		err := backupSingleNetworkDownDevices(client, &networkCfg)
+		err := infoSingleNetworkDownDevices(client, &networkCfg)
 		if err != nil {
-			slog.Error("Failed to backup down devices for network", "network", network.Name, "error", err)
+			slog.Error("Failed to collect down device info for network", "network", network.Name, "error", err)
 			continue
 		}
 	}
@@ -633,8 +633,8 @@ func backupOrganizationNetworkDownDevices(cfg *config.Config, client *meraki.Cli
 	return nil
 }
 
-// backupAllOrganizationDownDevices backs up down devices for all organizations
-func backupAllOrganizationDownDevices(cfg *config.Config, client *meraki.Client) error {
+// infoAllOrganizationDownDevices collects info for down devices for all organizations
+func infoAllOrganizationDownDevices(cfg *config.Config, client *meraki.Client) error {
 	organizations, err := client.GetOrganizations()
 	if err != nil {
 		return fmt.Errorf("error getting organizations: %w", err)
@@ -642,9 +642,9 @@ func backupAllOrganizationDownDevices(cfg *config.Config, client *meraki.Client)
 
 	for _, org := range organizations {
 		slog.Info("Processing organization for down devices", "org", org.Name, "id", org.ID)
-		err := backupOrganizationNetworkDownDevices(cfg, client, org.ID)
+		err := infoOrganizationNetworkDownDevices(cfg, client, org.ID)
 		if err != nil {
-			slog.Error("Failed to backup down devices for organization", "org", org.Name, "error", err)
+			slog.Error("Failed to collect down device info for organization", "org", org.Name, "error", err)
 			continue
 		}
 	}

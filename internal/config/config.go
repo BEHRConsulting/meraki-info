@@ -17,7 +17,7 @@ type Config struct {
 	OutputType   string
 	LogLevel     string
 	Command      string // The command argument (access, route-tables, licenses, down)
-	BackupAll    bool
+	InfoAll      bool
 }
 
 // ParseConfig parses command line arguments and environment variables
@@ -43,7 +43,7 @@ func printUsage() {
 	fmt.Fprintf(os.Stderr, "\nOPTIONS:\n")
 	
 	// Manually print each flag, with special handling for apikey
-	fmt.Fprintf(os.Stderr, "  -all\n    \tBackup for all networks. If -org specified, backup all networks in that organization. If -org not specified, backup all networks in all organizations.\n")
+	fmt.Fprintf(os.Stderr, "  -all\n    \tGet info for all networks. If -org specified, get info for all networks in that organization. If -org not specified, get info for all networks in all organizations.\n")
 	
 	// Special handling for apikey
 	apikeyDescription := "Meraki API key"
@@ -74,7 +74,7 @@ func parseConfigWithValidation() (*Config, error) {
 	flag.StringVar(&cfg.OutputFile, "output", "", "Output file path. Use '-' or omit for stdout")
 	flag.StringVar(&cfg.OutputType, "format", "text", "Output format: text, xml, json, csv")
 	flag.StringVar(&cfg.LogLevel, "loglevel", "error", "Log level: debug, info, error")
-	flag.BoolVar(&cfg.BackupAll, "all", false, "Backup for all networks. If -org specified, backup all networks in that organization. If -org not specified, backup all networks in all organizations.")
+	flag.BoolVar(&cfg.InfoAll, "all", false, "Get info for all networks. If -org specified, get info for all networks in that organization. If -org not specified, get info for all networks in all organizations.")
 
 	// Custom usage function
 	flag.Usage = printUsage
@@ -104,12 +104,12 @@ func parseConfigWithValidation() (*Config, error) {
 	}
 
 	// If showing access or using -all without -org, organization is not required for some cases
-	if cfg.Command != "access" && !cfg.BackupAll && cfg.Organization == "" {
+	if cfg.Command != "access" && !cfg.InfoAll && cfg.Organization == "" {
 		return nil, fmt.Errorf("organization is required. Use -org flag or MERAKI_ORG environment variable")
 	}
 
 	// If using -all, network should not be specified
-	if cfg.BackupAll && cfg.Network != "" {
+	if cfg.InfoAll && cfg.Network != "" {
 		return nil, fmt.Errorf("cannot specify -network when using -all. The -all flag processes all networks in the organization")
 	}
 
@@ -117,7 +117,7 @@ func parseConfigWithValidation() (*Config, error) {
 	// The validation requiring -output default for -all has been removed to support this use case
 
 	// Access mode doesn't support -all
-	if cfg.Command == "access" && cfg.BackupAll {
+	if cfg.Command == "access" && cfg.InfoAll {
 		return nil, fmt.Errorf("cannot use -all with access command. Use access command alone to show organizations/networks")
 	}
 
