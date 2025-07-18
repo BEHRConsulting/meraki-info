@@ -9,6 +9,9 @@ This project is a Golang application that collects Meraki network information.
 
 ## Features
 
+- **Cross-Platform Support**: Native builds for Windows, Linux, macOS (Intel & Apple Silicon)
+- **ARM64 Compatibility**: Full support for Apple Silicon Macs and ARM64 Linux servers  
+- **Enhanced Build System**: PowerShell scripts for Windows-native development experience
 - **Secure Authentication**: Supports both API Key and OAuth2 authentication methods
 - **Flexible Configuration**: Command line flags and environment variables
 - **Multiple Output Formats**: Text, JSON, XML, and CSV
@@ -16,19 +19,73 @@ This project is a Golang application that collects Meraki network information.
 - **Error Handling**: Graceful error handling with clear messages
 - **Rate Limiting Aware**: Efficient API usage to avoid hitting rate limits
 - **Unit Tests**: Comprehensive test coverage
+- **Multiple Build Options**: Traditional Makefile, PowerShell scripts, and batch files
 
 ## Installation
 
 ### Prerequisites
-- Go 1.21 or later
+- Go 1.21 or later (Go 1.16+ required for ARM64 support)
 - Meraki Dashboard API access
+- **Windows**: PowerShell 5.1+ (built-in with Windows 10/11)
+- **Cross-platform**: make (optional, for traditional Makefile usage)
 
 ### Build from Source
+
+#### Quick Start (Any Platform)
 ```bash
 git clone <repository-url>
 cd meraki-info
 go mod tidy
 go build -o meraki-info
+```
+
+#### Using Build Scripts (Recommended)
+
+**Windows (PowerShell):**
+```powershell
+# Simple build for Windows
+.\build.ps1
+
+# Build for all platforms (Windows, Linux, macOS, ARM64)
+.\build.ps1 -All
+
+# Using the full make system
+.\make.ps1 build-all
+```
+
+**Traditional Make (Linux/macOS/Windows with make):**
+```bash
+# Build for current platform
+make build
+
+# Build for all platforms including ARM64
+make build-all
+
+# Run tests
+make test
+```
+
+**See [BUILD_SCRIPTS.md](BUILD_SCRIPTS.md) for comprehensive build documentation.**
+
+## Available Platforms
+
+This application can be built for multiple platforms and architectures:
+
+| Platform | Architecture | Build Command | Output File | Size |
+|----------|--------------|---------------|-------------|------|
+| Windows | AMD64 | `.\make.ps1 build-windows` | `meraki-info.exe` | ~9.4 MB |
+| Linux | AMD64 | `.\make.ps1 build-linux` | `meraki-info-linux` | ~9.3 MB |
+| Linux | ARM64 | `.\make.ps1 build-linux-arm` | `meraki-info-linux-arm` | ~8.8 MB |
+| macOS | AMD64 (Intel) | `.\make.ps1 build-mac` | `meraki-info-mac` | ~9.3 MB |
+| macOS | ARM64 (Apple Silicon) | `.\make.ps1 build-mac-arm` | `meraki-info-mac-arm` | ~8.8 MB |
+
+**Build all platforms at once:**
+```powershell
+# PowerShell (Windows)
+.\make.ps1 build-all
+
+# Traditional make (any platform)
+make build-all
 ```
 
 ## Usage
@@ -260,6 +317,14 @@ meraki-info/
 │   └── output/                 # Output formatters
 │       ├── writer.go
 │       └── writer_test.go
+├── build.ps1                   # Simple PowerShell build script
+├── build-windows.ps1           # Advanced PowerShell build script
+├── make.ps1                    # Full PowerShell make system
+├── make.bat                    # Batch wrapper for Command Prompt
+├── PowerShell-Make-Function.ps1 # Global PowerShell make function
+├── Makefile                    # Traditional make system (cross-platform)
+├── BUILD_SCRIPTS.md            # Comprehensive build documentation
+├── MAKE_SUPPORT.md             # PowerShell make system documentation
 ├── go.mod
 ├── go.sum
 └── README.md
@@ -277,17 +342,65 @@ go test -cover ./...
 go test -v ./...
 ```
 
+**Using build scripts:**
+```powershell
+# PowerShell
+.\make.ps1 test              # Run tests
+.\make.ps1 test-v            # Verbose tests
+.\make.ps1 coverage          # With coverage
+
+# Traditional make
+make test                    # Run tests
+make test-v                  # Verbose tests
+make coverage                # With coverage
+```
+
 ### Building
+
+#### Simple Build Commands
 ```bash
 # Build for current platform
 go build -o meraki-info
 
-# Build for Linux
+# Manual cross-compilation
 GOOS=linux GOARCH=amd64 go build -o meraki-info-linux
-
-# Build for Windows
 GOOS=windows GOARCH=amd64 go build -o meraki-info.exe
+GOOS=darwin GOARCH=arm64 go build -o meraki-info-mac-arm  # Apple Silicon
 ```
+
+#### Enhanced Build System
+
+**PowerShell (Windows - Recommended):**
+```powershell
+# Quick builds
+.\build.ps1                  # Current platform
+.\build.ps1 -All             # All platforms
+.\build.ps1 -Target linux    # Specific platform
+
+# Full make system
+.\make.ps1 build             # Current platform
+.\make.ps1 build-all         # All platforms including ARM64
+.\make.ps1 build-mac-arm     # Apple Silicon specifically
+.\make.ps1 build-linux-arm   # ARM64 Linux
+
+# Command Prompt compatible
+make.bat build
+make.bat build-all
+```
+
+**Traditional Make (Cross-platform):**
+```bash
+make build                   # Current platform
+make build-all               # All platforms including ARM64
+make build-windows           # Windows x64
+make build-linux             # Linux x64
+make build-linux-arm         # Linux ARM64
+make build-mac               # macOS Intel
+make build-mac-arm           # macOS Apple Silicon
+make clean                   # Clean build artifacts
+```
+
+**See [BUILD_SCRIPTS.md](BUILD_SCRIPTS.md) and [MAKE_SUPPORT.md](MAKE_SUPPORT.md) for detailed build documentation.**
 
 ## Error Handling
 
@@ -297,6 +410,25 @@ The application provides clear error messages for common issues:
 - **Network issues**: Connection timeouts or API unavailability
 - **File system errors**: Permission issues or disk space problems
 - **Invalid configuration**: Missing required parameters
+- **Build errors**: Missing dependencies, unsupported platforms, or compilation issues
+
+### Build-Specific Troubleshooting
+
+**PowerShell Execution Policy:**
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
+
+**Missing Go Installation:**
+```bash
+go version  # Should show go1.21 or later
+```
+
+**ARM64 Build Issues:**
+Requires Go 1.16+ for ARM64 support:
+```bash
+go version  # Ensure go1.16 or later for ARM64
+```
 
 ## Rate Limiting
 
@@ -310,8 +442,31 @@ The application is designed to be respectful of Meraki API rate limits:
 1. Fork the repository
 2. Create a feature branch
 3. Add tests for new functionality
-4. Ensure all tests pass
-5. Submit a pull request
+4. Ensure all tests pass (`.\make.ps1 test` or `make test`)
+5. Build for all platforms (`.\make.ps1 build-all` or `make build-all`)
+6. Submit a pull request
+
+### Development Environment Setup
+
+**Windows:**
+```powershell
+# Clone and setup
+git clone <repository-url>
+cd meraki-info
+.\make.ps1 deps              # Install dependencies
+.\make.ps1 test              # Run tests
+.\make.ps1 build             # Build for current platform
+```
+
+**Linux/macOS:**
+```bash
+# Clone and setup
+git clone <repository-url>
+cd meraki-info
+make deps                    # Install dependencies
+make test                    # Run tests
+make build                   # Build for current platform
+```
 
 ## License
 
@@ -321,6 +476,27 @@ The application is designed to be respectful of Meraki API rate limits:
 
 For issues and questions:
 1. Check the error messages for troubleshooting hints
-2. Enable debug logging for more detailed information
-3. Consult the Meraki API documentation
-4. Open an issue in the repository
+2. Enable debug logging for more detailed information (`-loglevel debug`)
+3. Review build documentation in [BUILD_SCRIPTS.md](BUILD_SCRIPTS.md) and [MAKE_SUPPORT.md](MAKE_SUPPORT.md)
+4. Consult the Meraki API documentation
+5. Open an issue in the repository
+
+### Documentation
+
+- **[BUILD_SCRIPTS.md](BUILD_SCRIPTS.md)**: Comprehensive guide to all build scripts and cross-platform compilation
+- **[MAKE_SUPPORT.md](MAKE_SUPPORT.md)**: PowerShell make system documentation with ARM64 support details
+- **[REQUIREMENTS.md](REQUIREMENTS.md)**: Detailed project requirements and specifications
+- **[CODE_REVIEW.md](CODE_REVIEW.md)**: Code review guidelines and best practices
+
+### Quick Reference
+
+**Windows Development:**
+```powershell
+.\make.ps1 help              # Show all available commands
+.\build.ps1 -Help            # Simple build script help
+```
+
+**Cross-Platform:**
+```bash
+make help                    # Show all Makefile targets
+```
