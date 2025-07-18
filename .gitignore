@@ -21,9 +21,13 @@ go.work
 .env
 
 # Application binary
-meraki-info.exe
-meraki-info.app
 meraki-info
+meraki-info-linux
+meraki-info-linux-arm
+meraki-info-mac
+meraki-info-mac-arm
+meraki-info.app
+meraki-info.exe
 
 # Output files
 *.txt
@@ -45,7 +49,3 @@ meraki-info
 .Trashes
 ehthumbs.db
 Thumbs.db
-meraki-info-linux
-meraki-info-mac
-meraki-info-linux-arm
-meraki-info-mac-arm
