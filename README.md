@@ -87,6 +87,9 @@ This application can be built for multiple platforms and architectures:
 
 # Traditional make (any platform)
 make build-all
+
+# WSL2 (Windows Subsystem for Linux)
+make build-all              # Builds all platforms including Windows .exe
 ```
 
 ## Usage
@@ -389,6 +392,21 @@ make.bat build
 make.bat build-all
 ```
 
+**WSL2 (Windows Subsystem for Linux):**
+```bash
+# Build Windows executable from WSL2
+GOOS=windows GOARCH=amd64 go build -o meraki-info.exe
+
+# Build all platforms from WSL2
+make build-all               # Uses traditional Makefile
+
+# Build specific Windows target
+make build-windows           # Creates meraki-info.exe
+
+# Cross-compile from WSL2 to Windows
+GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o meraki-info.exe
+```
+
 **Traditional Make (Cross-platform):**
 ```bash
 make build                   # Current platform
@@ -402,6 +420,156 @@ make clean                   # Clean build artifacts
 ```
 
 **See [BUILD_SCRIPTS.md](BUILD_SCRIPTS.md) and [MAKE_SUPPORT.md](MAKE_SUPPORT.md) for detailed build documentation.**
+
+## Building with WSL2
+
+Windows Subsystem for Linux 2 (WSL2) provides a full Linux environment on Windows. Here's how to build Windows executables from WSL2:
+
+### Prerequisites for WSL2
+```bash
+# Ensure Go is installed in WSL2
+go version
+
+# Install make if not available
+sudo apt update && sudo apt install make
+
+# Verify you can cross-compile to Windows
+go env GOOS GOARCH
+```
+
+### Building Windows Executables from WSL2
+
+#### Method 1: Direct Cross-Compilation
+```bash
+# Build Windows executable
+GOOS=windows GOARCH=amd64 go build -o meraki-info.exe
+
+# Optimized Windows build (smaller binary)
+GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o meraki-info.exe
+
+# Windows build with custom name
+GOOS=windows GOARCH=amd64 go build -o meraki-info-windows.exe
+```
+
+#### Method 2: Using the Makefile
+```bash
+# Build Windows target using make
+make build-windows           # Creates meraki-info.exe
+
+# Build all platforms including Windows
+make build-all              # Creates executables for all platforms
+
+# Clean and build Windows
+make clean && make build-windows
+```
+
+#### Method 3: Testing the Windows Executable
+```bash
+# Build Windows executable
+make build-windows
+
+# Run Windows executable using Wine (optional)
+# First install Wine: sudo apt install wine
+wine meraki-info.exe -help
+
+# Or copy to Windows and test natively
+cp meraki-info.exe /mnt/c/Users/YourUsername/Desktop/
+```
+
+### WSL2 Development Workflow
+
+#### Complete Development Cycle
+```bash
+# 1. Clone repository in WSL2
+git clone <repository-url>
+cd meraki-info
+
+# 2. Install dependencies
+go mod tidy
+
+# 3. Run tests (Linux environment)
+make test
+
+# 4. Build for Windows target
+make build-windows
+
+# 5. Build for all platforms
+make build-all
+
+# 6. Verify Windows executable exists
+ls -la meraki-info.exe
+
+# 7. Copy to Windows filesystem for testing
+cp meraki-info.exe /mnt/c/temp/
+```
+
+#### Cross-Platform Testing
+```bash
+# Test Linux version in WSL2
+./meraki-info -help
+
+# Test Windows version (copy to Windows first)
+cp meraki-info.exe /mnt/c/Users/$USER/Desktop/
+# Then run from Windows: meraki-info.exe -help
+```
+
+### File System Integration
+
+#### Accessing WSL2 Files from Windows
+```bash
+# WSL2 files are accessible from Windows at:
+# \\wsl$\Ubuntu\home\username\meraki-info
+
+# Copy built executable to Windows Desktop
+cp meraki-info.exe /mnt/c/Users/$USER/Desktop/
+
+# Copy to a shared Windows folder
+cp meraki-info.exe /mnt/c/temp/meraki-tools/
+```
+
+#### Best Practices for WSL2 Development
+```bash
+# Work in Linux filesystem for better performance
+cd ~/projects/meraki-info  # Not /mnt/c/...
+
+# Use WSL2 for development, copy executables to Windows
+make build-windows
+cp meraki-info.exe /mnt/c/Users/$USER/Desktop/
+
+# Version control works seamlessly
+git add . && git commit -m "Added WSL2 build instructions"
+```
+
+### Troubleshooting WSL2 Builds
+
+#### Common Issues and Solutions
+```bash
+# Issue: Go not found
+sudo apt update && sudo apt install golang-go
+
+# Issue: Permission denied when copying to Windows
+# Ensure target directory exists and has proper permissions
+mkdir -p /mnt/c/temp && cp meraki-info.exe /mnt/c/temp/
+
+# Issue: Executable won't run on Windows
+# Verify it's a Windows executable
+file meraki-info.exe  # Should show "PE32+ executable"
+
+# Issue: Large executable size
+# Use build flags to reduce size
+GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o meraki-info.exe
+```
+
+### Performance Comparison
+
+| Build Method | Location | Performance | File Access |
+|--------------|----------|-------------|-------------|
+| Native Windows | C:\ | Fast | Native |
+| WSL2 (Linux FS) | ~/projects | Fast | WSL2 optimized |
+| WSL2 (Windows FS) | /mnt/c | Slower | Cross-filesystem |
+| PowerShell Scripts | C:\ | Fast | Native Windows |
+
+**Recommendation**: Develop in WSL2 Linux filesystem (`~/projects`) for best performance, then copy Windows executables to Windows filesystem when needed.
 
 ## Error Handling
 
@@ -457,6 +625,17 @@ cd meraki-info
 .\make.ps1 deps              # Install dependencies
 .\make.ps1 test              # Run tests
 .\make.ps1 build             # Build for current platform
+```
+
+**WSL2 (Windows Subsystem for Linux):**
+```bash
+# Clone and setup in WSL2
+git clone <repository-url>
+cd meraki-info
+make deps                    # Install dependencies
+make test                    # Run tests (Linux environment)
+make build-windows           # Build Windows executable
+make build-all               # Build all platforms
 ```
 
 **Linux/macOS:**
