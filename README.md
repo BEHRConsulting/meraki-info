@@ -5,8 +5,8 @@ This project is a Golang application that collects Meraki network information.
 ## AI Generated (mostly) 
 - This was an experiment using Github's Copilot in agent mode and Claude Sonnet 4 AI model.
 - I kept tweeking the prompts to get the functions I needed.
-- The prompts I used the generate this app are on the bottom of the file prompts-initial.md.
-- The prompts Claude Sonnet 4 created from prompts-initial.md are in file prompts-pretty.md.
+- The prompts I used the generate this app are on the the file prompts-initial.md.
+- The prompts Claude Sonnet 4 created from prompts-initial.md are in file prompts-claude.md.
 
 ## Features
 
