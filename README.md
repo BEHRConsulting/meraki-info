@@ -27,7 +27,7 @@ This project is a Golang application that collects Meraki network information.
 ### Prerequisites
 - Go 1.21 or later (Go 1.16+ required for ARM64 support)
 - Meraki Dashboard API access
-- **Windows**: PowerShell 5.1+ (built-in with Windows 10/11)
+- **Windows**: PowerShell 7.1+ (built-in with Windows 10/11)
 - **Cross-platform**: make (optional, for traditional Makefile usage)
 
 ### Build from Source
