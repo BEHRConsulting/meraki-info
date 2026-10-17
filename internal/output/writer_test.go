@@ -3,6 +3,7 @@ package output
 import (
 	"encoding/json"
 	"encoding/xml"
+	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -245,5 +246,38 @@ func TestCSVWriter_WriteToFile(t *testing.T) {
 	// Check data
 	if !strings.Contains(lines[1], "route1,Test Route 1") {
 		t.Error("Expected CSV data not found")
+	}
+}
+
+// failingWriter is an io.Writer whose every Write fails, standing in for a
+// full disk or a closed pipe.
+type failingWriter struct{}
+
+// Write always fails.
+//
+// Returns 0 and an error.
+func (failingWriter) Write(p []byte) (int, error) {
+	return 0, errors.New("disk full")
+}
+
+// TestCSVWriter_WriteTo_ReportsWriteError checks that a failed write reaches
+// the caller. csv.Writer buffers, so a small table only reaches the
+// destination at the final flush, and that flush's error used to be dropped:
+// a CSV file could be left empty or truncated while the command reported
+// success.
+func TestCSVWriter_WriteTo_ReportsWriteError(t *testing.T) {
+	inputs := map[string]interface{}{
+		"routes":              []meraki.Route{{ID: "r1", Subnet: "10.0.0.0/8"}},
+		"routes with network": []meraki.RouteWithNetwork{{Route: meraki.Route{ID: "r1"}, NetworkID: "N_1"}},
+		"licenses":            []meraki.License{{ID: "l1"}},
+		"devices":             []meraki.Device{{Serial: "Q2XX"}},
+	}
+	for name, data := range inputs {
+		t.Run(name, func(t *testing.T) {
+			err := (&CSVWriter{}).WriteTo(data, failingWriter{})
+			if err == nil {
+				t.Fatal("expected the write error to be returned, got nil")
+			}
+		})
 	}
 }

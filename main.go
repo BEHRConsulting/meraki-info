@@ -327,8 +327,8 @@ func infoAllNetworkAlertingDevices(client *meraki.Client, cfg *config.Config) er
 //
 // It walks every organization the key can see and every network in each,
 // tagging each device with its network and organization. A failing
-// organization or network is logged and skipped. cfg.Organization is not
-// consulted, so -org does not narrow this report.
+// organization or network is logged and skipped. With -org, only that
+// organization is walked (see [organizationsToReport]).
 //
 // Parameters:
 //   - client: the Meraki API client.
@@ -343,6 +343,7 @@ func infoAllNetworkAlertingDevicesConsolidated(client *meraki.Client, cfg *confi
 	if err != nil {
 		return fmt.Errorf("failed to get organizations: %w", err)
 	}
+	orgs = organizationsToReport(orgs, cfg.Organization)
 
 	var allAlertingDevices []meraki.DeviceWithNetwork
 
@@ -399,8 +400,8 @@ func infoAllNetworkAlertingDevicesConsolidated(client *meraki.Client, cfg *confi
 //
 // It reads the licenses of every organization the key can see, tagging
 // each with its organization; a failing organization is logged and
-// skipped. cfg.Organization is not consulted, so -org does not narrow
-// this report.
+// skipped. With -org, only that organization is read (see
+// [organizationsToReport]).
 //
 // Parameters:
 //   - client: the Meraki API client.
@@ -415,6 +416,7 @@ func infoAllNetworkLicensesConsolidated(client *meraki.Client, cfg *config.Confi
 	if err != nil {
 		return fmt.Errorf("failed to get organizations: %w", err)
 	}
+	orgs = organizationsToReport(orgs, cfg.Organization)
 
 	var allLicenses []meraki.LicenseWithNetwork
 
@@ -460,8 +462,8 @@ func infoAllNetworkLicensesConsolidated(client *meraki.Client, cfg *config.Confi
 //
 // It walks every organization the key can see and every network in each,
 // tagging each device with its network and organization. A failing
-// organization or network is logged and skipped. cfg.Organization is not
-// consulted, so -org does not narrow this report.
+// organization or network is logged and skipped. With -org, only that
+// organization is walked (see [organizationsToReport]).
 //
 // Parameters:
 //   - client: the Meraki API client.
@@ -476,6 +478,7 @@ func infoAllNetworkDownDevicesConsolidated(client *meraki.Client, cfg *config.Co
 	if err != nil {
 		return fmt.Errorf("failed to get organizations: %w", err)
 	}
+	orgs = organizationsToReport(orgs, cfg.Organization)
 
 	var allDownDevices []meraki.DeviceWithNetwork
 
@@ -797,31 +800,31 @@ func showAccessInformation(client *meraki.Client, orgFilter string) {
 		if orgFilter != "" {
 			// When filtering by org, show specific examples for that org
 			fmt.Printf("   # Get route info from organization '%s':\n", orgs[0].Name)
-			fmt.Printf("   ./meraki-routes-backup --apikey \"your-key\" --org \"%s\"\n", orgs[0].ID)
+			fmt.Printf("   ./meraki-info --apikey \"your-key\" --org \"%s\" route-tables\n", orgs[0].ID)
 
 			networks, err := client.GetOrganizationNetworks(orgs[0].ID)
 			if err == nil && len(networks) > 0 {
 				fmt.Printf("   # Get route info from specific network in '%s':\n", orgs[0].Name)
-				fmt.Printf("   ./meraki-routes-backup --apikey \"your-key\" --org \"%s\" --network \"%s\"\n", orgs[0].ID, networks[0].ID)
-				fmt.Printf("   # Get info for all networks in '%s' to separate files:\n", orgs[0].Name)
-				fmt.Printf("   ./meraki-routes-backup --apikey \"your-key\" --org \"%s\" --all\n", orgs[0].ID)
+				fmt.Printf("   ./meraki-info --apikey \"your-key\" --org \"%s\" --network \"%s\" route-tables\n", orgs[0].ID, networks[0].ID)
+				fmt.Printf("   # Get route info for all networks in '%s' (one consolidated report):\n", orgs[0].Name)
+				fmt.Printf("   ./meraki-info --apikey \"your-key\" --org \"%s\" --all route-tables\n", orgs[0].ID)
 				fmt.Printf("   # View access info for this organization only:\n")
-				fmt.Printf("   ./meraki-routes-backup --access --apikey \"your-key\" --org \"%s\"\n", orgs[0].ID)
+				fmt.Printf("   ./meraki-info --apikey \"your-key\" --org \"%s\" access\n", orgs[0].ID)
 			}
 		} else {
 			// General examples when showing all orgs
 			fmt.Printf("   # Get route info from a specific organization:\n")
-			fmt.Printf("   ./meraki-routes-backup --apikey \"your-key\" --org \"%s\"\n", orgs[0].ID)
+			fmt.Printf("   ./meraki-info --apikey \"your-key\" --org \"%s\" route-tables\n", orgs[0].ID)
 
 			networks, err := client.GetOrganizationNetworks(orgs[0].ID)
 			if err == nil && len(networks) > 0 {
 				fmt.Printf("   # Get route info from a specific network:\n")
-				fmt.Printf("   ./meraki-routes-backup --apikey \"your-key\" --org \"%s\" --network \"%s\"\n", orgs[0].ID, networks[0].ID)
+				fmt.Printf("   ./meraki-info --apikey \"your-key\" --org \"%s\" --network \"%s\" route-tables\n", orgs[0].ID, networks[0].ID)
 			}
-			fmt.Printf("   # Get info for all networks to separate files:\n")
-			fmt.Printf("   ./meraki-routes-backup --apikey \"your-key\" --org \"%s\" --all\n", orgs[0].ID)
+			fmt.Printf("   # Get route info for all networks in an organization (one consolidated report):\n")
+			fmt.Printf("   ./meraki-info --apikey \"your-key\" --org \"%s\" --all route-tables\n", orgs[0].ID)
 			fmt.Printf("   # View access info for specific organization:\n")
-			fmt.Printf("   ./meraki-routes-backup --access --apikey \"your-key\" --org \"%s\"\n", orgs[0].ID)
+			fmt.Printf("   ./meraki-info --apikey \"your-key\" --org \"%s\" access\n", orgs[0].ID)
 		}
 	}
 	fmt.Println()
@@ -840,6 +843,32 @@ func formatBool(value bool, trueStr, falseStr string) string {
 		return trueStr
 	}
 	return falseStr
+}
+
+// organizationsToReport narrows the organizations a consolidated report walks
+// to the one named by -org.
+//
+// The consolidated licenses, down and alerting reports list every
+// organization the key can see; without this, -org was silently ignored for
+// them, unlike route-tables and the -help text ("If -org specified, get info
+// for all networks in that organization").
+//
+// Parameters:
+//   - orgs: every organization visible to the API key.
+//   - orgID: the resolved -org value, or "" when -org was not given.
+//
+// Returns orgs unchanged when orgID is "", otherwise only the organization
+// with that ID (none if it is not in orgs).
+func organizationsToReport(orgs []meraki.Organization, orgID string) []meraki.Organization {
+	if orgID == "" {
+		return orgs
+	}
+	for _, org := range orgs {
+		if org.ID == orgID {
+			return []meraki.Organization{org}
+		}
+	}
+	return nil
 }
 
 // infoOrganizationNetworkRoutes collects info for routes for all networks in an organization

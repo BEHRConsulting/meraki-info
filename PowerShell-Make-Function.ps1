@@ -24,10 +24,10 @@
     None. Defines the make function in the current scope.
 
 .NOTES
-    The final Export-ModuleMember line only works when this file is loaded
-    as a module; when the file is dot-sourced or pasted into a profile,
-    PowerShell reports an error for that line, but the function is still
-    defined.
+    Dot-sourcing (or pasting into a profile) defines the function in the
+    caller's scope; no export is needed. An Export-ModuleMember line used to
+    end this file, which made every dot-source report "can only be called
+    from inside a module".
 #>
 
 
@@ -97,5 +97,3 @@ function make {
     Write-Host "For PowerShell make functionality, ensure make.ps1 is present." -ForegroundColor Yellow
 }
 
-# Export the function if this script is dot-sourced
-Export-ModuleMember -Function make

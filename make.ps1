@@ -290,7 +290,9 @@ function Invoke-AccessTarget {
 
     .DESCRIPTION
         Requires MERAKI_APIKEY in the environment; exits 1 without it.
-        This makes a live call to the Meraki Dashboard API.
+        meraki-info reads the key from the environment, so it is not passed
+        on the command line (where it would also have to precede the
+        command). This makes a live call to the Meraki Dashboard API.
 
     .OUTPUTS
         The access report written by meraki-info.
@@ -305,9 +307,9 @@ function Invoke-AccessTarget {
     Invoke-BuildTarget
     
     if (Test-Path "meraki-info.exe") {
-        .\meraki-info.exe access --apikey $env:MERAKI_APIKEY
+        .\meraki-info.exe access
     } elseif (Test-Path "meraki-info") {
-        .\meraki-info access --apikey $env:MERAKI_APIKEY
+        .\meraki-info access
     } else {
         Write-MakeOutput "❌ No executable found" -Color Error
         exit 1

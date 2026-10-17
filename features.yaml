@@ -25,8 +25,9 @@ features:
     created: 2025-07-16
     updated: 2026-10-16
     notes: >-
-      Not run against the live API in the 2026-10-16 pass. The usage examples it prints name a
-      binary (meraki-routes-backup) and an --access flag that do not exist.
+      Not run against the live API. The usage examples it prints named a binary
+      (meraki-routes-backup) and an --access flag that do not exist; fixed in the 2026-10-16
+      code review.
 
   - id: FEAT-0003
     title: route-tables command - static, VPN, VLAN, switch L3 and switch-stack routes
@@ -47,7 +48,7 @@ features:
     notes: >-
       No unit test of GetLicenses itself. The endpoint used is the per-device licensing one;
       behaviour on co-term or subscription organizations is unverified. Consolidated output
-      ignores -org.
+      ignored -org until the 2026-10-16 code review.
 
   - id: FEAT-0005
     title: down command - devices whose status is offline/alerting/dormant/down/unreachable/disconnected
@@ -58,7 +59,8 @@ features:
     notes: >-
       Uses the status field of GET /networks/{id}/devices, unlike alerting which joins the
       organization device-statuses endpoint; whether that field is populated live is unverified.
-      "alerting" counts as down. Consolidated output ignores -org.
+      "alerting" counts as down. Consolidated output ignored -org until the 2026-10-16 code
+      review.
 
   - id: FEAT-0006
     title: alerting command - devices whose live status is alerting
@@ -67,8 +69,8 @@ features:
     created: 2025-07-16
     updated: 2026-10-16
     notes: >-
-      Not verified live. Consolidated output ignores -org. Fetches the organization status list
-      once per network in -all mode.
+      Not verified live. Consolidated output ignored -org until the 2026-10-16 code review.
+      Fetches the organization status list once per network in -all mode.
 
   - id: FEAT-0007
     title: Output formats - text, JSON, XML, CSV
@@ -79,6 +81,8 @@ features:
     notes: >-
       Per-network routes, licenses and devices work in all four formats (unit-tested). The
       consolidated license and device types are written as JSON when xml or csv is asked for.
+      CSV write/flush and file-close errors were silently dropped until the 2026-10-16 code
+      review.
 
   - id: FEAT-0008
     title: -all - every network in an organization or in every organization
@@ -110,7 +114,8 @@ features:
     notes: >-
       make build / make test verified on macOS arm64 on 2026-10-16; the Windows scripts were
       only parsed and their -Help run under pwsh on macOS. The `access` target of Makefile and
-      make.ps1 passes the command before --apikey, which the CLI rejects.
+      make.ps1 passed --apikey after the command, which the CLI rejects; fixed in the
+      2026-10-16 code review (the key now comes from MERAKI_APIKEY only).
 
   - id: FEAT-0011
     title: OAuth2 authentication
