@@ -1,4 +1,8 @@
 # Meraki Info Makefile
+#
+# Build, test and cross-compile targets for meraki-info. `make help` lists
+# them. make.ps1 offers the same targets on Windows without make. Only the
+# `access` target talks to the Meraki API (it needs MERAKI_APIKEY).
 
 .PHONY: help build test test-v coverage clean run access install deps build-linux build-linux-arm build-windows build-mac build-mac-arm build-all
 

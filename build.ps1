@@ -1,5 +1,54 @@
-# Simple Meraki Info Build Script for Windows
-# PowerShell script to build the Meraki Info application
+<#
+.SYNOPSIS
+    Simple Meraki Info Build Script for Windows.
+
+.DESCRIPTION
+    PowerShell script to build the Meraki Info application.
+
+    Optionally cleans old binaries and runs `go test ./...`, then
+    cross-compiles meraki-info for one platform (amd64 only) or for
+    Windows, Linux and macOS together. If meraki-info.exe exists afterwards
+    it is smoke-tested with --help. ARM64 builds are not offered here; use
+    make.ps1 build-linux-arm / build-mac-arm.
+
+.PARAMETER Target
+    Platform to build when -All is not given: windows (default), linux or
+    mac. Case-insensitive.
+
+.PARAMETER All
+    Build Windows, Linux and macOS (amd64) instead of a single -Target.
+
+.PARAMETER Clean
+    Remove previous meraki-info binaries and run `go clean` first.
+
+.PARAMETER Test
+    Run `go test ./...` before building; exit 1 if any test fails.
+
+.PARAMETER Help
+    Print a short usage summary and exit.
+
+.EXAMPLE
+    .\build.ps1
+    Builds meraki-info.exe for Windows amd64.
+
+.EXAMPLE
+    .\build.ps1 -All
+
+.EXAMPLE
+    .\build.ps1 -Clean -Test -Target linux
+
+.INPUTS
+    None. You cannot pipe objects to this script.
+
+.OUTPUTS
+    None. Progress is written to the host; binaries are written to the
+    current directory.
+
+.NOTES
+    Exits 1 on a failed test run, an unknown target or a failed build.
+    GOOS/GOARCH are set in the session environment for each build and
+    removed afterwards.
+#>
 
 param(
     [string]$Target = "windows",
@@ -54,6 +103,30 @@ if ($Test) {
 
 # Build function
 function BuildApp($platform, $goos, $goarch, $output) {
+    <#
+    .SYNOPSIS
+        Cross-compiles meraki-info for one platform.
+
+    .DESCRIPTION
+        Sets GOOS/GOARCH, runs `go build -o <output> .`, reports the binary
+        size, then clears GOOS/GOARCH. Exits the whole script with 1 if the
+        build fails.
+
+    .PARAMETER platform
+        Display name used in messages, for example "Windows".
+
+    .PARAMETER goos
+        Value for GOOS: windows, linux or darwin.
+
+    .PARAMETER goarch
+        Value for GOARCH, for example amd64.
+
+    .PARAMETER output
+        Output file name for the binary.
+
+    .OUTPUTS
+        None. Writes progress to the host.
+    #>
     Write-Host "🔨 Building $platform..." -ForegroundColor Yellow
     $env:GOOS = $goos
     $env:GOARCH = $goarch

@@ -1,3 +1,24 @@
+// Command meraki-info reports information from the Cisco Meraki Dashboard
+// API: the organizations and networks an API key can reach, route tables,
+// licenses, and devices that are down or alerting.
+//
+// Usage:
+//
+//	meraki-info [OPTIONS] COMMAND
+//
+// Options must come before the command. COMMAND is one of access,
+// route-tables, licenses, down or alerting. The API key, organization and
+// network can come from MERAKI_APIKEY, MERAKI_ORG and MERAKI_NET instead
+// of flags. Output goes to stdout unless -output names a file, in -format
+// text (default), json, xml or csv. Logs are JSON on stderr.
+//
+// When -network is omitted every network is processed (the "-all" path).
+// Written to stdout, that produces one consolidated report whose records
+// name their network and organization. Written to a file, each network is
+// processed in turn and written to the -output path.
+//
+// See internal/config for option parsing, internal/meraki for the API
+// client and internal/output for the formats.
 package main
 
 import (
@@ -11,6 +32,11 @@ import (
 	"meraki-info/internal/output"
 )
 
+// main is the program entry point.
+//
+// It parses the configuration (exiting with usage on error), sets up
+// logging, creates the API client, resolves an organization name to its ID,
+// and dispatches the command. Any failure is logged and exits with status 1.
 func main() {
 	// Parse command line flags and environment variables
 	cfg := config.ParseConfig()
@@ -112,6 +138,14 @@ func main() {
 }
 
 // infoSingleNetworkRoutes collects routes for a single network
+//
+// Parameters:
+//   - client: the Meraki API client.
+//   - cfg: the configuration; Organization and Network select the routes
+//     (an empty Network means every network in the organization, run
+//     together), OutputFile and OutputType choose the destination.
+//
+// Returns an error if the routes cannot be fetched or written.
 func infoSingleNetworkRoutes(client *meraki.Client, cfg *config.Config) error {
 	// Fetch routes for single network
 	routes, err := client.GetRoutes(cfg.Organization, cfg.Network)
@@ -144,6 +178,15 @@ func infoSingleNetworkRoutes(client *meraki.Client, cfg *config.Config) error {
 }
 
 // infoSingleNetworkLicenses collects info for licenses for a single network/organization
+//
+// Licenses are organization-wide in this program: cfg.Network is ignored.
+//
+// Parameters:
+//   - client: the Meraki API client.
+//   - cfg: the validated configuration; OutputFile and OutputType choose
+//     where and how output is written.
+//
+// Returns an error if the licenses cannot be fetched or written.
 func infoSingleNetworkLicenses(client *meraki.Client, cfg *config.Config) error {
 	// Fetch licenses for the organization
 	licenses, err := client.GetLicenses(cfg.Organization)
@@ -176,6 +219,13 @@ func infoSingleNetworkLicenses(client *meraki.Client, cfg *config.Config) error 
 }
 
 // infoSingleNetworkDownDevices collects info for down devices for a single network
+//
+// Parameters:
+//   - client: the Meraki API client.
+//   - cfg: the configuration; Organization and Network select the devices,
+//     OutputFile and OutputType choose the destination.
+//
+// Returns an error if the devices cannot be fetched or written.
 func infoSingleNetworkDownDevices(client *meraki.Client, cfg *config.Config) error {
 	// Fetch down devices for single network
 	downDevices, err := client.GetDownDevices(cfg.Organization, cfg.Network)
@@ -208,6 +258,13 @@ func infoSingleNetworkDownDevices(client *meraki.Client, cfg *config.Config) err
 }
 
 // infoSingleNetworkAlertingDevices retrieves and outputs alerting device information for a single network
+//
+// Parameters:
+//   - client: the Meraki API client.
+//   - cfg: the configuration; Organization and Network select the devices,
+//     OutputFile and OutputType choose the destination.
+//
+// Returns an error if the devices cannot be fetched or written.
 func infoSingleNetworkAlertingDevices(client *meraki.Client, cfg *config.Config) error {
 	// Fetch alerting devices for single network
 	alertingDevices, err := client.GetAlertingDevices(cfg.Organization, cfg.Network)
@@ -240,6 +297,16 @@ func infoSingleNetworkAlertingDevices(client *meraki.Client, cfg *config.Config)
 }
 
 // infoAllNetworkAlertingDevices collects info for alerting devices for all networks in the organization(s) to separate files
+//
+// With stdout output it produces one consolidated report; with a file it
+// walks the organization (or every organization) network by network.
+//
+// Parameters:
+//   - client: the Meraki API client.
+//   - cfg: the validated configuration; OutputFile and OutputType choose
+//     where and how output is written.
+//
+// Returns the first error that stops the whole run.
 func infoAllNetworkAlertingDevices(client *meraki.Client, cfg *config.Config) error {
 	// Check if output should go to stdout (consolidated format)
 	if cfg.OutputFile == "" || cfg.OutputFile == "-" {
@@ -257,6 +324,19 @@ func infoAllNetworkAlertingDevices(client *meraki.Client, cfg *config.Config) er
 }
 
 // infoAllNetworkAlertingDevicesConsolidated collects alerting device info for all networks and outputs in a consolidated format to stdout
+//
+// It walks every organization the key can see and every network in each,
+// tagging each device with its network and organization. A failing
+// organization or network is logged and skipped. cfg.Organization is not
+// consulted, so -org does not narrow this report.
+//
+// Parameters:
+//   - client: the Meraki API client.
+//   - cfg: the validated configuration; OutputFile and OutputType choose
+//     where and how output is written.
+//
+// Returns an error if the organization list cannot be read or the output
+// cannot be written.
 func infoAllNetworkAlertingDevicesConsolidated(client *meraki.Client, cfg *config.Config) error {
 	// Get all organizations
 	orgs, err := client.GetOrganizations()
@@ -316,6 +396,19 @@ func infoAllNetworkAlertingDevicesConsolidated(client *meraki.Client, cfg *confi
 }
 
 // infoAllNetworkLicensesConsolidated collects license info for all networks and outputs in a consolidated format to stdout
+//
+// It reads the licenses of every organization the key can see, tagging
+// each with its organization; a failing organization is logged and
+// skipped. cfg.Organization is not consulted, so -org does not narrow
+// this report.
+//
+// Parameters:
+//   - client: the Meraki API client.
+//   - cfg: the validated configuration; OutputFile and OutputType choose
+//     where and how output is written.
+//
+// Returns an error if the organization list cannot be read or the output
+// cannot be written.
 func infoAllNetworkLicensesConsolidated(client *meraki.Client, cfg *config.Config) error {
 	// Get all organizations
 	orgs, err := client.GetOrganizations()
@@ -364,6 +457,19 @@ func infoAllNetworkLicensesConsolidated(client *meraki.Client, cfg *config.Confi
 }
 
 // infoAllNetworkDownDevicesConsolidated collects down device info for all networks and outputs in a consolidated format to stdout
+//
+// It walks every organization the key can see and every network in each,
+// tagging each device with its network and organization. A failing
+// organization or network is logged and skipped. cfg.Organization is not
+// consulted, so -org does not narrow this report.
+//
+// Parameters:
+//   - client: the Meraki API client.
+//   - cfg: the validated configuration; OutputFile and OutputType choose
+//     where and how output is written.
+//
+// Returns an error if the organization list cannot be read or the output
+// cannot be written.
 func infoAllNetworkDownDevicesConsolidated(client *meraki.Client, cfg *config.Config) error {
 	// Get all organizations
 	orgs, err := client.GetOrganizations()
@@ -423,6 +529,16 @@ func infoAllNetworkDownDevicesConsolidated(client *meraki.Client, cfg *config.Co
 }
 
 // infoAllNetworkDownDevices collects info for down devices for all networks in the organization(s)
+//
+// With stdout output it produces one consolidated report; with a file it
+// walks the organization (or every organization) network by network.
+//
+// Parameters:
+//   - client: the Meraki API client.
+//   - cfg: the validated configuration; OutputFile and OutputType choose
+//     where and how output is written.
+//
+// Returns the first error that stops the whole run.
 func infoAllNetworkDownDevices(client *meraki.Client, cfg *config.Config) error {
 	// Check if output should go to stdout (consolidated format)
 	if cfg.OutputFile == "" || cfg.OutputFile == "-" {
@@ -440,6 +556,16 @@ func infoAllNetworkDownDevices(client *meraki.Client, cfg *config.Config) error 
 }
 
 // infoAllNetworkRoutes collects info for routes for all networks in the organization(s)
+//
+// With stdout output it produces one consolidated report; with a file it
+// walks the organization (or every organization) network by network.
+//
+// Parameters:
+//   - client: the Meraki API client.
+//   - cfg: the validated configuration; OutputFile and OutputType choose
+//     where and how output is written.
+//
+// Returns the first error that stops the whole run.
 func infoAllNetworkRoutes(client *meraki.Client, cfg *config.Config) error {
 	// Check if output should go to stdout (consolidated format)
 	if cfg.OutputFile == "" || cfg.OutputFile == "-" {
@@ -457,6 +583,18 @@ func infoAllNetworkRoutes(client *meraki.Client, cfg *config.Config) error {
 }
 
 // infoAllNetworkRoutesConsolidated collects info for routes for all networks and outputs to stdout in consolidated format
+//
+// Unlike the other consolidated reports it honors cfg.Organization: with
+// -org only that organization is read, and each record's Organization
+// field holds the organization ID rather than its name.
+//
+// Parameters:
+//   - client: the Meraki API client.
+//   - cfg: the validated configuration; OutputFile and OutputType choose
+//     where and how output is written.
+//
+// Returns an error if the organization's networks (or, without -org, the
+// organization list) cannot be read or the output cannot be written.
 func infoAllNetworkRoutesConsolidated(client *meraki.Client, cfg *config.Config) error {
 	if cfg.Organization != "" {
 		// Get routes for all networks in a specific organization
@@ -538,6 +676,16 @@ func infoAllNetworkRoutesConsolidated(client *meraki.Client, cfg *config.Config)
 }
 
 // infoAllNetworkLicenses collects info for licenses for all networks in the organization(s)
+//
+// With stdout output it produces one consolidated report; with a file it
+// walks the organization (or every organization) network by network.
+//
+// Parameters:
+//   - client: the Meraki API client.
+//   - cfg: the validated configuration; OutputFile and OutputType choose
+//     where and how output is written.
+//
+// Returns the first error that stops the whole run.
 func infoAllNetworkLicenses(client *meraki.Client, cfg *config.Config) error {
 	// Check if output should go to stdout (consolidated format)
 	if cfg.OutputFile == "" || cfg.OutputFile == "-" {
@@ -555,6 +703,18 @@ func infoAllNetworkLicenses(client *meraki.Client, cfg *config.Config) error {
 }
 
 // showAccessInformation displays available organizations and networks for the API key
+//
+// It prints a boxed report to stdout: each organization's ID, name, API
+// status, licensing model, region and dashboard URL, then its networks.
+// It ends with usage examples built from the first organization.
+//
+// Parameters:
+//   - client: the Meraki API client.
+//   - orgFilter: an organization ID (already resolved by main) to show
+//     alone, or "" for every organization.
+//
+// It exits the process with status 1 if the organization list cannot be
+// read; per-organization network errors are printed and skipped.
 func showAccessInformation(client *meraki.Client, orgFilter string) {
 	fmt.Println("╔════════════════════════════════════════════════════════════════════════════════╗")
 	fmt.Println("║                          Meraki API Access Information                        ║")
@@ -668,6 +828,13 @@ func showAccessInformation(client *meraki.Client, orgFilter string) {
 }
 
 // formatBool formats a boolean value with custom true/false strings
+//
+// Parameters:
+//   - value: the boolean to format.
+//   - trueStr: returned when value is true.
+//   - falseStr: returned when value is false.
+//
+// Returns trueStr or falseStr.
 func formatBool(value bool, trueStr, falseStr string) string {
 	if value {
 		return trueStr
@@ -676,6 +843,18 @@ func formatBool(value bool, trueStr, falseStr string) string {
 }
 
 // infoOrganizationNetworkRoutes collects info for routes for all networks in an organization
+//
+// It runs [infoSingleNetworkRoutes] once per network with a copy of cfg
+// narrowed to that network. Every run writes to the same cfg.OutputFile, so
+// each network replaces the previous one's output.
+//
+// Parameters:
+//   - cfg: the configuration; OutputFile must be set.
+//   - client: the Meraki API client.
+//   - organizationID: the organization whose networks to walk.
+//
+// Returns an error if the network list cannot be read or no output file is
+// set; a failing network is logged and skipped.
 func infoOrganizationNetworkRoutes(cfg *config.Config, client *meraki.Client, organizationID string) error {
 	networks, err := client.GetOrganizationNetworks(organizationID)
 	if err != nil {
@@ -704,6 +883,18 @@ func infoOrganizationNetworkRoutes(cfg *config.Config, client *meraki.Client, or
 }
 
 // infoOrganizationNetworkLicenses collects info for licenses for all networks in an organization
+//
+// It runs [infoSingleNetworkLicenses] once per network. Licenses are
+// organization-wide, so every run fetches and writes the same list to the
+// same cfg.OutputFile.
+//
+// Parameters:
+//   - cfg: the configuration; OutputFile must be set.
+//   - client: the Meraki API client.
+//   - organizationID: the organization whose networks to walk.
+//
+// Returns an error if the network list cannot be read or no output file is
+// set; a failing network is logged and skipped.
 func infoOrganizationNetworkLicenses(cfg *config.Config, client *meraki.Client, organizationID string) error {
 	networks, err := client.GetOrganizationNetworks(organizationID)
 	if err != nil {
@@ -732,6 +923,13 @@ func infoOrganizationNetworkLicenses(cfg *config.Config, client *meraki.Client, 
 }
 
 // infoAllOrganizationRoutes collects info for routes for all organizations
+//
+// Parameters:
+//   - cfg: the configuration; OutputFile must be set.
+//   - client: the Meraki API client.
+//
+// Returns an error only if the organization list cannot be read; a failing
+// organization is logged and skipped.
 func infoAllOrganizationRoutes(cfg *config.Config, client *meraki.Client) error {
 	organizations, err := client.GetOrganizations()
 	if err != nil {
@@ -751,6 +949,13 @@ func infoAllOrganizationRoutes(cfg *config.Config, client *meraki.Client) error 
 }
 
 // infoAllOrganizationLicenses collects info for licenses for all organizations
+//
+// Parameters:
+//   - cfg: the configuration; OutputFile must be set.
+//   - client: the Meraki API client.
+//
+// Returns an error only if the organization list cannot be read; a failing
+// organization is logged and skipped.
 func infoAllOrganizationLicenses(cfg *config.Config, client *meraki.Client) error {
 	organizations, err := client.GetOrganizations()
 	if err != nil {
@@ -770,6 +975,18 @@ func infoAllOrganizationLicenses(cfg *config.Config, client *meraki.Client) erro
 }
 
 // infoOrganizationNetworkDownDevices collects info for down devices for all networks in an organization
+//
+// It runs [infoSingleNetworkDownDevices] once per network with a copy of
+// cfg narrowed to that network. Every run writes to the same
+// cfg.OutputFile, so each network replaces the previous one's output.
+//
+// Parameters:
+//   - cfg: the configuration; OutputFile must be set.
+//   - client: the Meraki API client.
+//   - organizationID: the organization whose networks to walk.
+//
+// Returns an error if the network list cannot be read or no output file is
+// set; a failing network is logged and skipped.
 func infoOrganizationNetworkDownDevices(cfg *config.Config, client *meraki.Client, organizationID string) error {
 	networks, err := client.GetOrganizationNetworks(organizationID)
 	if err != nil {
@@ -798,6 +1015,13 @@ func infoOrganizationNetworkDownDevices(cfg *config.Config, client *meraki.Clien
 }
 
 // infoAllOrganizationDownDevices collects info for down devices for all organizations
+//
+// Parameters:
+//   - cfg: the configuration; OutputFile must be set.
+//   - client: the Meraki API client.
+//
+// Returns an error only if the organization list cannot be read; a failing
+// organization is logged and skipped.
 func infoAllOrganizationDownDevices(cfg *config.Config, client *meraki.Client) error {
 	organizations, err := client.GetOrganizations()
 	if err != nil {
@@ -817,6 +1041,18 @@ func infoAllOrganizationDownDevices(cfg *config.Config, client *meraki.Client) e
 }
 
 // infoOrganizationNetworkAlertingDevices collects info for alerting devices for all networks in an organization
+//
+// It runs [infoSingleNetworkAlertingDevices] once per network with a copy
+// of cfg narrowed to that network. Every run writes to the same
+// cfg.OutputFile, so each network replaces the previous one's output.
+//
+// Parameters:
+//   - cfg: the configuration; OutputFile must be set.
+//   - client: the Meraki API client.
+//   - organizationID: the organization whose networks to walk.
+//
+// Returns an error if the network list cannot be read or no output file is
+// set; a failing network is logged and skipped.
 func infoOrganizationNetworkAlertingDevices(cfg *config.Config, client *meraki.Client, organizationID string) error {
 	networks, err := client.GetOrganizationNetworks(organizationID)
 	if err != nil {
@@ -845,6 +1081,13 @@ func infoOrganizationNetworkAlertingDevices(cfg *config.Config, client *meraki.C
 }
 
 // infoAllOrganizationAlertingDevices collects info for alerting devices for all organizations
+//
+// Parameters:
+//   - cfg: the configuration; OutputFile must be set.
+//   - client: the Meraki API client.
+//
+// Returns an error only if the organization list cannot be read; a failing
+// organization is logged and skipped.
 func infoAllOrganizationAlertingDevices(cfg *config.Config, client *meraki.Client) error {
 	organizations, err := client.GetOrganizations()
 	if err != nil {

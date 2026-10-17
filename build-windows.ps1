@@ -1,5 +1,50 @@
-# Meraki Info Windows Build Script
-# PowerShell script to build the Meraki Info application for Windows
+<#
+.SYNOPSIS
+    Meraki Info Windows Build Script.
+
+.DESCRIPTION
+    PowerShell script to build the Meraki Info application for Windows.
+
+    The longer sibling of build.ps1 with the same options: optionally clean
+    and test, then cross-compile meraki-info for one platform (amd64) or
+    for Windows, Linux and macOS together, smoke-test meraki-info.exe with
+    --help, and list the binaries that were built.
+
+.PARAMETER Target
+    Platform to build when -All is not given: windows (default), linux or
+    mac. Case-insensitive.
+
+.PARAMETER All
+    Build Windows, Linux and macOS (amd64) instead of a single -Target.
+
+.PARAMETER Clean
+    Remove previous meraki-info binaries and run `go clean` first.
+
+.PARAMETER Test
+    Run `go test ./...` before building; exit 1 if any test fails.
+
+.PARAMETER Help
+    Print a usage summary and exit.
+
+.EXAMPLE
+    .\build-windows.ps1
+
+.EXAMPLE
+    .\build-windows.ps1 -Target linux
+
+.EXAMPLE
+    .\build-windows.ps1 -Clean -Test -All
+
+.INPUTS
+    None. You cannot pipe objects to this script.
+
+.OUTPUTS
+    None. Progress is written to the host; binaries are written to the
+    current directory.
+
+.NOTES
+    Exits 1 on a failed test run, an unknown target or a failed build.
+#>
 
 param(
     [string]$Target = "windows",
@@ -11,6 +56,13 @@ param(
 
 # Function to display help
 function Show-Help {
+    <#
+    .SYNOPSIS
+        Prints this script's usage summary.
+
+    .OUTPUTS
+        None. Writes to the host.
+    #>
     Write-Host "Meraki Info Windows Build Script" -ForegroundColor Green
     Write-Host ""
     Write-Host "Usage: .\build-windows.ps1 [OPTIONS]" -ForegroundColor Yellow
@@ -32,6 +84,18 @@ function Show-Help {
 
 # Function to clean build artifacts
 function Remove-BuildArtifacts {
+    <#
+    .SYNOPSIS
+        Deletes previously built meraki-info binaries and runs `go clean`.
+
+    .DESCRIPTION
+        Removes meraki-info.exe, meraki-info-linux, meraki-info-mac and
+        meraki-info from the current directory when present. ARM64
+        binaries (meraki-info-*-arm) are not removed.
+
+    .OUTPUTS
+        None. Writes progress to the host.
+    #>
     Write-Host "🧹 Cleaning build artifacts..." -ForegroundColor Yellow
     
     $artifacts = @(
@@ -55,6 +119,16 @@ function Remove-BuildArtifacts {
 
 # Function to run tests
 function Invoke-Tests {
+    <#
+    .SYNOPSIS
+        Runs `go test ./...`.
+
+    .DESCRIPTION
+        Exits the whole script with 1 if any test fails.
+
+    .OUTPUTS
+        None. Writes progress to the host.
+    #>
     Write-Host "🧪 Running tests..." -ForegroundColor Yellow
     
     go test ./...
@@ -68,6 +142,30 @@ function Invoke-Tests {
 
 # Function to build for a specific platform
 function Build-Platform {
+    <#
+    .SYNOPSIS
+        Cross-compiles meraki-info for one platform.
+
+    .DESCRIPTION
+        Sets GOOS/GOARCH, runs `go build -o <OutputName> .`, reports the
+        binary size, then clears GOOS/GOARCH. Exits the whole script with 1
+        if the build fails.
+
+    .PARAMETER Platform
+        Display name used in messages, for example "Windows".
+
+    .PARAMETER GOOS
+        Value for GOOS: windows, linux or darwin.
+
+    .PARAMETER GOARCH
+        Value for GOARCH, for example amd64.
+
+    .PARAMETER OutputName
+        Output file name for the binary.
+
+    .OUTPUTS
+        None. Writes progress to the host.
+    #>
     param(
         [string]$Platform,
         [string]$GOOS,
@@ -103,6 +201,17 @@ function Build-Platform {
 
 # Function to test the Windows executable
 function Test-WindowsExecutable {
+    <#
+    .SYNOPSIS
+        Smoke-tests meraki-info.exe by running it with --help.
+
+    .DESCRIPTION
+        Does nothing if meraki-info.exe is absent. A failure is reported
+        but does not stop the script.
+
+    .OUTPUTS
+        None. Writes the result to the host.
+    #>
     if (Test-Path "meraki-info.exe") {
         Write-Host "🧪 Testing Windows executable..." -ForegroundColor Yellow
         

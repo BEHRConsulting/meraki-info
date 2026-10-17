@@ -7,6 +7,9 @@ import (
 	"testing"
 )
 
+// TestParseConfig checks parseConfigWithValidation's validation rules and
+// option/command combinations. Each subtest replaces flag.CommandLine and
+// os.Args; the deferred cleanup restores the MERAKI_* environment.
 func TestParseConfig(t *testing.T) {
 	// Save original environment
 	originalOrg := os.Getenv("MERAKI_ORG")

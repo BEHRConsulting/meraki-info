@@ -10,6 +10,7 @@ import (
 	"meraki-info/internal/meraki"
 )
 
+// TestNewWriter checks that each format name maps to the right Writer type.
 func TestNewWriter(t *testing.T) {
 	tests := []struct {
 		outputType   string
@@ -52,6 +53,8 @@ func TestNewWriter(t *testing.T) {
 	}
 }
 
+// TestTextWriter_WriteToFile checks that routes written as text to a file
+// contain the expected fields.
 func TestTextWriter_WriteToFile(t *testing.T) {
 	routes := []meraki.Route{
 		{
@@ -103,6 +106,8 @@ func TestTextWriter_WriteToFile(t *testing.T) {
 	}
 }
 
+// TestJSONWriter_WriteToFile checks that routes written as JSON to a file
+// decode back into a route list.
 func TestJSONWriter_WriteToFile(t *testing.T) {
 	routes := []meraki.Route{
 		{
@@ -148,6 +153,8 @@ func TestJSONWriter_WriteToFile(t *testing.T) {
 	}
 }
 
+// TestXMLWriter_WriteToFile checks that routes written as XML to a file
+// contain the expected elements.
 func TestXMLWriter_WriteToFile(t *testing.T) {
 	routes := []meraki.Route{
 		{
@@ -193,6 +200,8 @@ func TestXMLWriter_WriteToFile(t *testing.T) {
 	}
 }
 
+// TestCSVWriter_WriteToFile checks that routes written as CSV to a file have
+// the expected header row followed by data rows.
 func TestCSVWriter_WriteToFile(t *testing.T) {
 	routes := []meraki.Route{
 		{

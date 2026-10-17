@@ -1,4 +1,13 @@
-// Package config handles command line arguments and environment variables
+// Package config turns the meraki-info command line and environment into a
+// validated [Config].
+//
+// Options are Go flag-package flags and must come before the single
+// positional command (access, alerting, down, licenses, route-tables);
+// the flag package stops parsing at the first non-flag argument, so an
+// option written after the command is treated as a second command and
+// rejected. Each of -org, -network and -apikey falls back to an
+// environment variable (MERAKI_ORG, MERAKI_NET, MERAKI_APIKEY) so the key
+// need not appear on the command line.
 package config
 
 import (
@@ -8,19 +17,41 @@ import (
 	"strings"
 )
 
-// Config holds all configuration options for the application
+// Config holds every option the application runs with, after flags and
+// environment variables have been merged and validated.
 type Config struct {
+	// Organization is the Meraki organization ID or name from -org or
+	// MERAKI_ORG. main resolves a name to its ID before any command runs.
 	Organization string
-	Network      string
-	APIKey       string
-	OutputFile   string
-	OutputType   string
-	LogLevel     string
-	Command      string // The command argument (access, route-tables, licenses, down)
-	InfoAll      bool
+	// Network is the Meraki network ID or name from -network or MERAKI_NET.
+	// Empty means "all networks" (see InfoAll).
+	Network string
+	// APIKey is the Meraki Dashboard API key from -apikey or MERAKI_APIKEY.
+	APIKey string
+	// OutputFile is the -output path. Empty or "-" means stdout.
+	OutputFile string
+	// OutputType is the -format value: text, json, xml or csv. Any other
+	// value falls back to text in output.NewWriter.
+	OutputType string
+	// LogLevel is the -loglevel value: debug, info or error.
+	LogLevel string
+	// Command is the single positional command, lower-cased. It is one of
+	// access, alerting, down, licenses or route-tables.
+	Command string // The command argument (access, route-tables, licenses, down)
+	// InfoAll is true when every network should be processed. It is set by
+	// -all, and also forced on whenever -network is empty and the command
+	// is not access.
+	InfoAll bool
 }
 
-// ParseConfig parses command line arguments and environment variables
+// ParseConfig parses the process's command line and environment into a
+// Config.
+//
+// It is the program's only entry point into this package. On any
+// validation error it prints the error and the usage text to stderr and
+// exits the process with status 1, so callers never see an invalid Config.
+//
+// Returns the validated configuration.
 func ParseConfig() *Config {
 	cfg, err := parseConfigWithValidation()
 	if err != nil {
@@ -31,7 +62,12 @@ func ParseConfig() *Config {
 	return cfg
 }
 
-// printUsage prints custom usage information
+// printUsage writes the custom usage text to stderr.
+//
+// It replaces the flag package's default usage so the API key's
+// environment-variable default is never echoed back to the terminal; it
+// only says whether MERAKI_APIKEY is set. It is installed as flag.Usage
+// and is also called by ParseConfig after a validation error.
 func printUsage() {
 	fmt.Fprintf(os.Stderr, "Usage: %s [OPTIONS] COMMAND\n\n", os.Args[0])
 	fmt.Fprintf(os.Stderr, "OPTIONS:\n")
@@ -61,6 +97,14 @@ func printUsage() {
 }
 
 // parseConfigWithValidation parses config and returns validation errors (for testing)
+//
+// It registers the flags on the global flag.CommandLine, parses os.Args,
+// reads the single positional command, applies the "no -network means all
+// networks" rule and checks the option combinations. Tests replace
+// flag.CommandLine and os.Args before calling it.
+//
+// Returns the Config, or an error describing the first invalid option or
+// combination found.
 func parseConfigWithValidation() (*Config, error) {
 	cfg := &Config{}
 

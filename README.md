@@ -2,6 +2,15 @@
 
 This project is a Golang application that collects Meraki network information.
 
+`meraki-info` is a read-only command-line tool for the Cisco Meraki Dashboard API v1. With an
+API key it lists the organizations and networks the key can reach (`access`), and reports route
+tables (`route-tables`), licenses (`licenses`), devices that are down (`down`) and devices that
+are alerting (`alerting`) as text, JSON, XML or CSV.
+
+For contributors and AI agents, [AGENTS.md](AGENTS.md) has the layout, commands and conventions;
+[WORKLOG.md](WORKLOG.md), [VERSIONS.md](VERSIONS.md) and [features.yaml](features.yaml) record
+what was done, what shipped and what exists.
+
 ## AI Generated (mostly) 
 - This was an experiment using Github's Copilot in agent mode and Claude Sonnet 4 AI model.
 - I kept tweeking the prompts to get the functions I needed.
@@ -13,19 +22,19 @@ This project is a Golang application that collects Meraki network information.
 - **Cross-Platform Support**: Native builds for Windows, Linux, macOS (Intel & Apple Silicon)
 - **ARM64 Compatibility**: Full support for Apple Silicon Macs and ARM64 Linux servers  
 - **Enhanced Build System**: PowerShell scripts for Windows-native development experience
-- **Secure Authentication**: Supports both API Key and OAuth2 authentication methods
+- **Authentication**: API key (`-apikey` or `MERAKI_APIKEY`). The client package also has an OAuth2 constructor, but the command line does not expose it.
 - **Flexible Configuration**: Command line flags and environment variables
 - **Multiple Output Formats**: Text, JSON, XML, and CSV
 - **Structured Logging**: Configurable log levels (debug, info, error)
 - **Error Handling**: Graceful error handling with clear messages
-- **Rate Limiting Aware**: Efficient API usage to avoid hitting rate limits
-- **Unit Tests**: Comprehensive test coverage
+- **Retries**: Rate-limit (429) and server (5xx) responses are retried up to 3 times with exponential backoff
+- **Unit Tests**: Config, API client (against local test servers) and output writers; about 40-55% statement coverage per package, none for `main`
 - **Multiple Build Options**: Traditional Makefile, PowerShell scripts, and batch files
 
 ## Installation
 
 ### Prerequisites
-- Go 1.21 or later (Go 1.16+ required for ARM64 support)
+- Go 1.24.2 or later (the `go` line in `go.mod`)
 - Meraki Dashboard API access
 - **Windows**: PowerShell 5.1+ (built-in with Windows 10/11)
 - **Cross-platform**: make (optional, for traditional Makefile usage)
@@ -104,16 +113,33 @@ make build-all              # Builds all platforms including Windows .exe
 | `-output` | - | Output file path | No (default: stdout) |
 | `-format` | - | Output format: text, json, xml, csv | No (default: text) |
 | `-loglevel` | - | Log level: debug, info, error | No (default: error) |
-| `-all` | - | Get info for all networks to separate timestamped files | No |
+| `-all` | - | Process every network (see below). Implied whenever `-network` is not given, except for `access` | No |
 
 **Commands (positional arguments):**
 - `access` - Show available organizations and networks
 - `route-tables` - Output route tables
 - `licenses` - Output license information  
-- `down` - Output all devices that are down/offline
+- `down` - Output all devices that are down/offline (offline, alerting, dormant, down, unreachable or disconnected)
+- `alerting` - Output all devices that are alerting
 
 *Organization is not required when using `access` command.
 *The `-all` and `-network` options cannot be used together.
+
+**Options must come before the command.** Go's flag parser stops at the first non-option
+argument, so `meraki-info access -apikey KEY` fails with "only one command is allowed"; write
+`meraki-info -apikey KEY access`.
+
+**What `-all` does.** Without `-network`, every network is processed:
+
+- **To stdout** (no `-output`, or `-output -`): one consolidated report whose records carry the
+  network and organization. For `route-tables` it covers the `-org` organization, or every
+  organization when `-org` is not given. For `licenses`, `down` and `alerting` it currently
+  covers **every organization the key can see, even when `-org` is given**.
+- **To a file** (`-output FILE`): each network is processed in turn and written to that same
+  `FILE`, so the file ends up holding only the last network's results. (Timestamped per-network
+  file names existed until commit `f376ff6` removed the `-output default` option.)
+- In consolidated reports, `-format xml` and `-format csv` for `licenses`, `down` and `alerting`
+  produce indented JSON, not XML or CSV.
 
 ### Examples
 
@@ -154,15 +180,15 @@ export MERAKI_ORG="your-org-id"
 ./meraki-info -apikey your-api-key -org your-org-id -network net-id -output routes.json -format json route-tables
 ```
 
-#### Get info for all networks to separate files
+#### Get info for all networks (consolidated, to stdout)
 ```bash
-# Get info for all networks in organization to separate timestamped files (text format)
+# Every network in the organization, one consolidated text report
 ./meraki-info -apikey your-api-key -org your-org-id -all route-tables
 
-# Get info for all networks to JSON files
+# The same as JSON
 ./meraki-info -apikey your-api-key -org your-org-id -all -format json route-tables
 
-# Get info for all networks to CSV files  
+# The same as CSV
 ./meraki-info -apikey your-api-key -org your-org-id -all -format csv route-tables
 ```
 
@@ -203,8 +229,9 @@ export MERAKI_ORG="your-org-id"
 3. Generate an API key
 4. Use the key with the `-apikey` option or `MERAKI_APIKEY` environment variable
 
-### OAuth2 (For production applications)
-The application supports OAuth2 authentication for production use cases. See the Meraki API documentation for OAuth2 setup instructions.
+### OAuth2 (not available from the command line)
+`internal/meraki` has a `NewClientWithOAuth2` constructor that wraps an already-issued access
+token, but nothing calls it and there are no OAuth2 options. Use an API key.
 
 ## Output Formats
 
@@ -222,37 +249,18 @@ Comma-separated values format for spreadsheet applications.
 
 ## File Naming
 
-### Single Network Info
-When backing up a single network:
+Output goes to **stdout** unless `-output` names a file; `-output -` also means stdout. With
+`-output FILE` the exact name given is used, and an existing file is overwritten:
 
-**When `-output` is specified**: Uses the exact filename provided.
 ```bash
 ./meraki-info -apikey key -org 123 -network "City Core" -output "my-info.txt" route-tables
 # Creates: my-info.txt
 ```
 
-**When `-output` is NOT specified or set to "default"**: Auto-generates filename in format:
-```
-RouteTables-<OrganizationName>-<NetworkName>-<RFC3339 datetime>.<extension>
-```
-
-Examples:
-- `RouteTables-City_of_Gardena-City_Core-2025-07-15T18-10-17-07-00.txt`
-- `Licenses-YourOrganization-YourNetwork-2025-07-15T18-12-15-07-00.csv`
-- `Down-MyCompany-MainOffice-2025-07-15T14-30-45-07-00.json`
-
-### All Networks Info (`-all` option)
-When using the `-all` option, each network gets its own file with the following naming convention:
-```
-<CommandType>-<OrganizationName>-<NetworkName>-<RFC3339 datetime>.<extension>
-```
-
-Examples:
-- `RouteTables-City_of_Gardena-City_Core-2025-07-15T17-59-21-07-00.txt`
-- `Licenses-YourOrganization-YourNetwork-2025-07-15T18-01-01-07-00.json`
-- `Down-MyCompany-MainOffice-2025-07-15T14-30-45-07-00.csv`
-
-**Note**: Special characters in organization and network names are replaced with underscores for filesystem compatibility.
+There is no automatic file naming. Timestamped
+`<CommandType>-<OrganizationName>-<NetworkName>-<RFC3339 datetime>.<extension>` names were
+generated until commit `f376ff6` ("Remove --alerting --output default") took that option out
+(see "What `-all` does" above).
 
 ### Stdout Output
 When `-output "-"` is specified, the output is sent to stdout instead of a file. This enables:
@@ -317,10 +325,12 @@ meraki-info/
 │   │   └── logger.go
 │   ├── meraki/                 # Meraki API client
 │   │   ├── client.go
-│   │   └── client_test.go
+│   │   ├── client_test.go
+│   │   └── retry_test.go
 │   └── output/                 # Output formatters
 │       ├── writer.go
-│       └── writer_test.go
+│       ├── writer_test.go
+│       └── orgid_test.go
 ├── build.ps1                   # Simple PowerShell build script
 ├── build-windows.ps1           # Advanced PowerShell build script
 ├── make.ps1                    # Full PowerShell make system
@@ -329,6 +339,9 @@ meraki-info/
 ├── Makefile                    # Traditional make system (cross-platform)
 ├── BUILD_SCRIPTS.md            # Comprehensive build documentation
 ├── MAKE_SUPPORT.md             # PowerShell make system documentation
+├── AGENTS.md                   # Guide for contributors and AI agents
+├── WORKLOG.md / VERSIONS.md    # What was done and why / what shipped
+├── features.yaml               # Feature status manifest
 ├── go.mod
 ├── go.sum
 └── README.md
@@ -590,7 +603,7 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 
 **Missing Go Installation:**
 ```bash
-go version  # Should show go1.21 or later
+go version  # Should show go1.24.2 or later
 ```
 
 **ARM64 Build Issues:**
@@ -601,10 +614,13 @@ go version  # Ensure go1.16 or later for ARM64
 
 ## Rate Limiting
 
-The application is designed to be respectful of Meraki API rate limits:
-- Uses efficient API calls
-- Implements proper timeouts
-- Provides clear error messages if rate limits are exceeded
+How the client behaves around Meraki API rate limits:
+- A 429 (or 500/502/503/504, or a network error) is retried up to 3 times, waiting 1s, 1s and
+  then 2s. The `Retry-After` header is not read.
+- Each request has a 30-second timeout.
+- Requests are made one at a time; `-all` makes several calls per network, so large
+  organizations take a while.
+- List endpoints are read as a single page; very large organizations may be truncated.
 
 ## Contributing
 

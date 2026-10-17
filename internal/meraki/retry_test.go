@@ -7,6 +7,9 @@ import (
 	"time"
 )
 
+// TestRetryLogic checks makeRequest's retry behavior against a test server:
+// success first time, retry on 429 and 500, no retry on 404, and failure
+// once retries are exhausted.
 func TestRetryLogic(t *testing.T) {
 	t.Run("successful request on first try", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -178,6 +181,8 @@ func TestRetryLogic(t *testing.T) {
 	})
 }
 
+// TestRetryConfig checks the default retry policy and that SetRetryConfig
+// replaces it.
 func TestRetryConfig(t *testing.T) {
 	t.Run("default retry config", func(t *testing.T) {
 		client, err := NewClient("test-api-key")
@@ -231,6 +236,8 @@ func TestRetryConfig(t *testing.T) {
 	})
 }
 
+// TestCalculateBackoff pins the backoff sequence (1s, 1s, 2s for attempts
+// 0-2) and the MaxInterval cap.
 func TestCalculateBackoff(t *testing.T) {
 	client, err := NewClient("test-api-key")
 	if err != nil {
@@ -266,6 +273,8 @@ func TestCalculateBackoff(t *testing.T) {
 	}
 }
 
+// TestIsRetryableError checks which transport errors and HTTP statuses are
+// treated as retryable.
 func TestIsRetryableError(t *testing.T) {
 	tests := []struct {
 		name       string

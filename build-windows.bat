@@ -1,6 +1,15 @@
 @echo off
 REM Meraki Info Windows Build Script
 REM Batch file to build the Meraki Info application for Windows
+REM
+REM Usage: build-windows.bat [--target PLATFORM] [--all] [--clean] [--test] [--help or -h]
+REM PLATFORM is windows (default), linux or mac.
+REM
+REM Command Prompt counterpart of build-windows.ps1: optionally cleans and
+REM runs `go test ./...`, cross-compiles meraki-info (amd64) for one
+REM platform or for Windows, Linux and macOS, smoke-tests meraki-info.exe
+REM with --help, and lists the binaries built. Exits 1 on a failed test
+REM run, unknown target or failed build.
 
 setlocal EnableDelayedExpansion
 
@@ -82,6 +91,7 @@ echo   build-windows.bat --clean --test    # Clean, test, then build
 echo.
 goto :end
 
+REM clean_artifacts: delete previously built amd64 binaries and run go clean.
 :clean_artifacts
 echo 🧹 Cleaning build artifacts...
 if exist "meraki-info.exe" (
@@ -105,6 +115,7 @@ echo ✅ Build artifacts cleaned
 echo.
 goto :eof
 
+REM run_tests: run go test ./... and exit 1 if any test fails.
 :run_tests
 echo 🧪 Running tests...
 go test ./...
@@ -116,6 +127,7 @@ echo ✅ All tests passed
 echo.
 goto :eof
 
+REM build_single: build the platform named by the first argument (windows, linux or mac).
 :build_single
 set "platform=%1"
 if /i "%platform%"=="windows" (
@@ -132,6 +144,7 @@ if /i "%platform%"=="windows" (
 )
 goto :eof
 
+REM build_all: build Windows, Linux and macOS, then smoke-test the .exe.
 :build_all
 echo Building for all platforms...
 call :build_windows
@@ -140,6 +153,7 @@ call :build_mac
 call :test_windows_exe
 goto :eof
 
+REM build_windows: build meraki-info.exe for windows/amd64.
 :build_windows
 echo 🔨 Building for Windows...
 set GOOS=windows
@@ -152,6 +166,7 @@ if errorlevel 1 (
 echo ✅ Windows build completed: meraki-info.exe
 goto :eof
 
+REM build_linux: build meraki-info-linux for linux/amd64.
 :build_linux
 echo 🔨 Building for Linux...
 set GOOS=linux
@@ -164,6 +179,7 @@ if errorlevel 1 (
 echo ✅ Linux build completed: meraki-info-linux
 goto :eof
 
+REM build_mac: build meraki-info-mac for darwin/amd64.
 :build_mac
 echo 🔨 Building for macOS...
 set GOOS=darwin
@@ -176,6 +192,7 @@ if errorlevel 1 (
 echo ✅ macOS build completed: meraki-info-mac
 goto :eof
 
+REM test_windows_exe: run meraki-info.exe --help if it exists; report only.
 :test_windows_exe
 if exist "meraki-info.exe" (
     echo 🧪 Testing Windows executable...

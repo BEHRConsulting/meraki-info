@@ -1,4 +1,23 @@
 // Package meraki provides Meraki API client functionality
+//
+// It is a small, read-only client for the Cisco Meraki Dashboard API v1
+// (https://api.meraki.com/api/v1). Every call is an HTTP GET made through
+// [Client.makeRequest], which authenticates with the X-Cisco-Meraki-API-Key
+// header and retries rate-limit (429) and server (5xx) failures with
+// exponential backoff.
+//
+// The package also defines the data types the rest of the program prints:
+// [Route], [License] and [Device], plus the *WithNetwork variants that add
+// the network and organization a record came from for consolidated
+// multi-network output.
+//
+// Route collection is best-effort by design: a network has routes in up to
+// five places (appliance static routes, site-to-site VPN subnets, appliance
+// VLANs, switch L3 interfaces and switch stacks) and most networks only have
+// some of them, so a source that fails or is absent contributes no routes
+// rather than an error.
+//
+// Responses are not paginated: each list endpoint is read as a single page.
 package meraki
 
 import (
@@ -16,113 +35,210 @@ import (
 )
 
 // Route represents a Meraki network route
+//
+// Its JSON shape is that of the appliance static-routes endpoint, which
+// decodes into it directly. Routes from the other sources (VPN, VLAN,
+// switch and switch-stack) are synthesized into the same shape, with an ID
+// prefix such as "vpn-", "vlan-" or "stack-" saying where they came from.
 type Route struct {
-	ID          string      `json:"id,omitempty"`
-	Name        string      `json:"name,omitempty"`
-	Subnet      string      `json:"subnet"`
-	GatewayIP   string      `json:"gatewayIp"`
-	GatewayVlan int         `json:"gatewayVlanId,omitempty"`
-	Enabled     bool        `json:"enabled"`
-	FixedIP     interface{} `json:"fixedIpAssignments,omitempty"`
+	// ID is the Meraki route ID, or a synthesized ID for non-static sources.
+	ID string `json:"id,omitempty"`
+	// Name is the route's name; a generated label when the API gave none.
+	Name string `json:"name,omitempty"`
+	// Subnet is the destination subnet in CIDR notation.
+	Subnet string `json:"subnet"`
+	// GatewayIP is the next-hop address (or interface address for
+	// directly connected subnets).
+	GatewayIP string `json:"gatewayIp"`
+	// GatewayVlan is the next-hop VLAN ID, when the API supplies one.
+	GatewayVlan int `json:"gatewayVlanId,omitempty"`
+	// Enabled reports whether the route is active.
+	Enabled bool `json:"enabled"`
+	// FixedIP holds the API's fixedIpAssignments object unchanged; its
+	// shape is not modeled, so it is kept as decoded JSON.
+	FixedIP interface{} `json:"fixedIpAssignments,omitempty"`
 }
 
 // NetworkRoutes represents routes for a specific network
 type NetworkRoutes struct {
+	// Network is the network the routes belong to.
 	Network Network `json:"network"`
-	Routes  []Route `json:"routes"`
+	// Routes holds every route found for Network; empty, not nil, when
+	// collection failed.
+	Routes []Route `json:"routes"`
 }
 
 // License represents a Meraki license
+//
+// Its JSON shape is that of GET /organizations/{organizationId}/licenses.
 type License struct {
-	ID                string `json:"id,omitempty"`
-	OrganizationID    string `json:"organizationId,omitempty"`
-	DeviceSerial      string `json:"deviceSerial,omitempty"`
-	NetworkID         string `json:"networkId,omitempty"`
-	State             string `json:"state,omitempty"`
-	Edition           string `json:"edition,omitempty"`
-	Mode              string `json:"mode,omitempty"`
-	ExpirationDate    string `json:"expirationDate,omitempty"`
-	LicenseType       string `json:"licenseType,omitempty"`
-	LicenseKey        string `json:"licenseKey,omitempty"`
-	OrderNumber       string `json:"orderNumber,omitempty"`
-	PermanentlyQueued bool   `json:"permanentlyQueued,omitempty"`
-	DurationInDays    int    `json:"durationInDays,omitempty"`
+	// ID is the Meraki license ID.
+	ID string `json:"id,omitempty"`
+	// OrganizationID is the organization that owns the license.
+	OrganizationID string `json:"organizationId,omitempty"`
+	// DeviceSerial is the serial of the device the license is assigned to.
+	DeviceSerial string `json:"deviceSerial,omitempty"`
+	// NetworkID is the network the license is assigned to, if any.
+	NetworkID string `json:"networkId,omitempty"`
+	// State is the license state as Meraki reports it (for example active).
+	State string `json:"state,omitempty"`
+	// Edition is the license edition, when applicable.
+	Edition string `json:"edition,omitempty"`
+	// Mode is the license mode, when applicable.
+	Mode string `json:"mode,omitempty"`
+	// ExpirationDate is the expiry timestamp exactly as the API returns it.
+	ExpirationDate string `json:"expirationDate,omitempty"`
+	// LicenseType is the license type (product/model family).
+	LicenseType string `json:"licenseType,omitempty"`
+	// LicenseKey is the license key.
+	LicenseKey string `json:"licenseKey,omitempty"`
+	// OrderNumber is the order the license was purchased on.
+	OrderNumber string `json:"orderNumber,omitempty"`
+	// PermanentlyQueued reports whether the license is permanently queued.
+	PermanentlyQueued bool `json:"permanentlyQueued,omitempty"`
+	// DurationInDays is the license term in days.
+	DurationInDays int `json:"durationInDays,omitempty"`
 }
 
 // NetworkLicenses represents licenses for a specific network
 type NetworkLicenses struct {
-	Network  Network   `json:"network"`
+	// Network is the network the licenses were matched to.
+	Network Network `json:"network"`
+	// Licenses holds the licenses assigned to Network plus every
+	// organization-wide license (those with no NetworkID).
 	Licenses []License `json:"licenses"`
 }
 
 // Device represents a Meraki device
+//
+// Its JSON shape is that of GET /networks/{networkId}/devices. Status is
+// filled from that response when present; [Client.GetAlertingDevices]
+// overwrites it from the organization device-statuses endpoint.
 type Device struct {
-	Serial         string   `json:"serial"`
-	Name           string   `json:"name,omitempty"`
-	Model          string   `json:"model"`
-	NetworkID      string   `json:"networkId"`
-	MAC            string   `json:"mac,omitempty"`
-	Status         string   `json:"status"`
-	LastReportedAt string   `json:"lastReportedAt,omitempty"`
-	ProductType    string   `json:"productType,omitempty"`
-	Tags           []string `json:"tags,omitempty"`
-	Address        string   `json:"address,omitempty"`
-	Lat            float64  `json:"lat,omitempty"`
-	Lng            float64  `json:"lng,omitempty"`
-	Notes          string   `json:"notes,omitempty"`
+	// Serial is the device serial number, Meraki's unique device key.
+	Serial string `json:"serial"`
+	// Name is the device's dashboard name.
+	Name string `json:"name,omitempty"`
+	// Model is the hardware model, for example MX64.
+	Model string `json:"model"`
+	// NetworkID is the network the device belongs to.
+	NetworkID string `json:"networkId"`
+	// MAC is the device's MAC address.
+	MAC string `json:"mac,omitempty"`
+	// Status is the device status (online, offline, alerting, dormant...).
+	Status string `json:"status"`
+	// LastReportedAt is when the device last checked in, as the API gives it.
+	LastReportedAt string `json:"lastReportedAt,omitempty"`
+	// ProductType is the product family, for example appliance or switch.
+	ProductType string `json:"productType,omitempty"`
+	// Tags are the device's dashboard tags.
+	Tags []string `json:"tags,omitempty"`
+	// Address is the device's configured street address.
+	Address string `json:"address,omitempty"`
+	// Lat is the device's configured latitude.
+	Lat float64 `json:"lat,omitempty"`
+	// Lng is the device's configured longitude.
+	Lng float64 `json:"lng,omitempty"`
+	// Notes are the device's dashboard notes.
+	Notes string `json:"notes,omitempty"`
+	// BeaconIdParams holds the device's Bluetooth beacon identifiers. It is
+	// decoded but not printed by any writer.
 	BeaconIdParams struct {
-		UUID  string `json:"uuid,omitempty"`
-		Major int    `json:"major,omitempty"`
-		Minor int    `json:"minor,omitempty"`
+		// UUID is the beacon UUID.
+		UUID string `json:"uuid,omitempty"`
+		// Major is the beacon major number.
+		Major int `json:"major,omitempty"`
+		// Minor is the beacon minor number.
+		Minor int `json:"minor,omitempty"`
 	} `json:"beaconIdParams,omitempty"`
 }
 
 // RouteWithNetwork extends the Route struct to include network and organization information
+//
+// It is the record type of consolidated (-all to stdout) route output. The
+// xml and csv struct tags are not read by any writer in this program; the
+// output package builds its XML and CSV by hand.
 type RouteWithNetwork struct {
 	Route
-	NetworkID    string `json:"network_id" xml:"NetworkID" csv:"network_id"`
-	NetworkName  string `json:"network_name" xml:"NetworkName" csv:"network_name"`
+	// NetworkID is the ID of the network the route came from.
+	NetworkID string `json:"network_id" xml:"NetworkID" csv:"network_id"`
+	// NetworkName is the name of the network the route came from.
+	NetworkName string `json:"network_name" xml:"NetworkName" csv:"network_name"`
+	// Organization is the organization the route came from. It holds the
+	// organization's name when every organization is listed, but its ID
+	// when -org was given (see main.infoAllNetworkRoutesConsolidated).
 	Organization string `json:"organization" xml:"Organization" csv:"organization"`
 }
 
 // DeviceWithNetwork extends the Device struct to include network and organization information
+//
+// It is the record type of consolidated down and alerting device output.
 type DeviceWithNetwork struct {
 	Device
-	NetworkName    string `json:"network_name" xml:"NetworkName" csv:"network_name"`
-	NetworkID      string `json:"network_id" xml:"NetworkID" csv:"network_id"`
-	Organization   string `json:"organization" xml:"Organization" csv:"organization"`
+	// NetworkName is the name of the network the device belongs to.
+	NetworkName string `json:"network_name" xml:"NetworkName" csv:"network_name"`
+	// NetworkID is the ID of the network the device belongs to.
+	NetworkID string `json:"network_id" xml:"NetworkID" csv:"network_id"`
+	// Organization is the name of the device's organization.
+	Organization string `json:"organization" xml:"Organization" csv:"organization"`
+	// OrganizationID is the ID of the device's organization.
 	OrganizationID string `json:"organization_id" xml:"OrganizationID" csv:"organization_id"`
 }
 
 // LicenseWithNetwork extends the License struct to include organization information
+//
+// It is the record type of consolidated license output. Despite the name it
+// carries no network fields: licenses are listed per organization.
 type LicenseWithNetwork struct {
 	License
-	Organization   string `json:"organization" xml:"Organization" csv:"organization"`
+	// Organization is the name of the organization that owns the license.
+	Organization string `json:"organization" xml:"Organization" csv:"organization"`
+	// OrganizationID is the ID of the organization that owns the license.
 	OrganizationID string `json:"organization_id" xml:"OrganizationID" csv:"organization_id"`
 }
 
 // DeviceStatus represents the status information for a device from the organization statuses endpoint
+//
+// It is decoded from GET /organizations/{organizationId}/devices/statuses,
+// the endpoint that reliably reports live status.
 type DeviceStatus struct {
+	// Serial is the device serial, used to join statuses to devices.
 	Serial string `json:"serial"`
-	Name   string `json:"name,omitempty"`
+	// Name is the device's dashboard name.
+	Name string `json:"name,omitempty"`
+	// Status is the live status (online, offline, alerting, dormant...).
 	Status string `json:"status"`
 }
 
 // NetworkDevices represents devices for a specific network
 type NetworkDevices struct {
-	Network Network  `json:"network"`
+	// Network is the network the devices belong to.
+	Network Network `json:"network"`
+	// Devices holds the network's devices; empty, not nil, when fetching
+	// them failed.
 	Devices []Device `json:"devices"`
 }
 
 // RetryConfig holds retry configuration parameters
+//
+// See [Client.calculateBackoff] for how the fields combine.
 type RetryConfig struct {
-	MaxRetries      int
+	// MaxRetries is how many times a request is retried after the first
+	// attempt, so a request is tried at most MaxRetries+1 times.
+	MaxRetries int
+	// InitialInterval is the wait before the first retry.
 	InitialInterval time.Duration
-	MaxInterval     time.Duration
-	Multiplier      float64
+	// MaxInterval caps any single wait.
+	MaxInterval time.Duration
+	// Multiplier is the growth factor between successive waits.
+	Multiplier float64
 }
 
 // DefaultRetryConfig returns a default retry configuration
+//
+// Returns 3 retries, starting at 1s, doubling, capped at 30s. Because
+// [Client.calculateBackoff] maps attempts 0 and 1 to the same wait, the
+// three waits a failing request actually sees are 1s, 1s and 2s.
 func DefaultRetryConfig() RetryConfig {
 	return RetryConfig{
 		MaxRetries:      3,
@@ -133,14 +249,33 @@ func DefaultRetryConfig() RetryConfig {
 }
 
 // Client represents a Meraki API client
+//
+// A Client is created by [NewClient] (API key) or [NewClientWithOAuth2]. It
+// holds no per-request state; it is not documented as safe for concurrent
+// use, and the program only ever uses it from one goroutine.
 type Client struct {
-	httpClient  *http.Client
-	baseURL     string
-	apiKey      string
+	// httpClient sends the requests; it carries the timeout and TLS policy.
+	httpClient *http.Client
+	// baseURL is the API root, https://api.meraki.com/api/v1 in production.
+	// Tests in this package point it at an httptest server.
+	baseURL string
+	// apiKey is sent as X-Cisco-Meraki-API-Key; empty for OAuth2 clients.
+	apiKey string
+	// retryConfig controls makeRequest's retry and backoff behavior.
 	retryConfig RetryConfig
 }
 
 // NewClient creates a new Meraki API client
+//
+// The client talks to the global https://api.meraki.com/api/v1 endpoint
+// with a 30-second per-request timeout, TLS 1.2 or later, and
+// [DefaultRetryConfig].
+//
+// Parameters:
+//   - apiKey: the Meraki Dashboard API key.
+//
+// Returns the client, or an error if apiKey is empty. No request is made,
+// so a wrong key is only discovered on the first call.
 func NewClient(apiKey string) (*Client, error) {
 	if apiKey == "" {
 		return nil, fmt.Errorf("API key cannot be empty")
@@ -170,6 +305,16 @@ func NewClient(apiKey string) (*Client, error) {
 }
 
 // NewClientWithOAuth2 creates a new Meraki API client with OAuth2 authentication
+//
+// It wraps an already-issued access token in an oauth2 HTTP client; it
+// does not run an authorization flow or refresh the token. Nothing in the
+// program calls it today: the CLI only accepts an API key.
+//
+// Parameters:
+//   - clientID, clientSecret: the OAuth2 application credentials.
+//   - token: an access token obtained elsewhere.
+//
+// Returns the client. The error result is always nil.
 func NewClientWithOAuth2(clientID, clientSecret, token string) (*Client, error) {
 	config := &oauth2.Config{
 		ClientID:     clientID,
@@ -195,6 +340,14 @@ func NewClientWithOAuth2(clientID, clientSecret, token string) (*Client, error) 
 }
 
 // isRetryableError determines if an error should be retried
+//
+// Parameters:
+//   - err: the transport error from the HTTP client, or nil.
+//   - statusCode: the HTTP status, consulted only when err is nil.
+//
+// Returns true for any transport error (timeouts, resets, DNS) and for
+// 429, 500, 502, 503 and 504; false for everything else, including other
+// 4xx codes, which retrying cannot fix.
 func isRetryableError(err error, statusCode int) bool {
 	// Retry on network errors
 	if err != nil {
@@ -213,6 +366,15 @@ func isRetryableError(err error, statusCode int) bool {
 }
 
 // calculateBackoff calculates the backoff duration for a retry attempt
+//
+// The wait is InitialInterval * Multiplier^(attempt-1), capped at
+// MaxInterval. Attempts 0 and 1 both wait InitialInterval. No jitter is
+// applied, despite the comment in the body.
+//
+// Parameters:
+//   - attempt: the zero-based number of the attempt that just failed.
+//
+// Returns how long to sleep before the next attempt.
 func (c *Client) calculateBackoff(attempt int) time.Duration {
 	if attempt <= 0 {
 		return c.retryConfig.InitialInterval
@@ -230,6 +392,19 @@ func (c *Client) calculateBackoff(attempt int) time.Duration {
 }
 
 // makeRequest makes an authenticated HTTP request to the Meraki API with retry logic
+//
+// Every API call in this package goes through it. A request is retried,
+// after the [Client.calculateBackoff] wait, while [isRetryableError] says
+// so and retries remain; any other non-2xx status fails at once. The
+// response body of a failed attempt is closed and not read, so Meraki's
+// error message is not included in the returned error.
+//
+// Parameters:
+//   - method: the HTTP method; always "GET" in this program.
+//   - endpoint: the path below baseURL, starting with "/".
+//
+// Returns the successful (2xx) response, whose Body the caller must close,
+// or an error after the last failed attempt.
 func (c *Client) makeRequest(method, endpoint string) (*http.Response, error) {
 	url := fmt.Sprintf("%s%s", c.baseURL, endpoint)
 
@@ -296,16 +471,32 @@ func (c *Client) makeRequest(method, endpoint string) (*http.Response, error) {
 }
 
 // SetRetryConfig allows customization of retry behavior
+//
+// Parameters:
+//   - config: the new retry policy, used by every later request.
+//
+// It is used by tests to shorten waits; the CLI keeps the default.
 func (c *Client) SetRetryConfig(config RetryConfig) {
 	c.retryConfig = config
 }
 
 // GetRetryConfig returns the current retry configuration
+//
+// Returns a copy of the client's retry policy.
 func (c *Client) GetRetryConfig() RetryConfig {
 	return c.retryConfig
 }
 
 // GetRoutes fetches all routes for the specified organization and network
+//
+// Parameters:
+//   - organizationID: the organization to search.
+//   - networkIdentifier: a network ID or name (see [Client.ResolveNetworkID]).
+//     Empty means every network in the organization, concatenated.
+//
+// Returns the routes (never nil), or an error if the network cannot be
+// resolved or the organization's network list cannot be read. When every
+// network is read, a network whose routes fail is logged and skipped.
 func (c *Client) GetRoutes(organizationID, networkIdentifier string) ([]Route, error) {
 	routes := make([]Route, 0) // Initialize as empty slice instead of nil slice
 
@@ -347,29 +538,51 @@ func (c *Client) GetRoutes(organizationID, networkIdentifier string) ([]Route, e
 }
 
 // Network represents a Meraki network
+//
+// Its JSON shape is that of GET /organizations/{organizationId}/networks.
 type Network struct {
-	ID           string   `json:"id"`
-	Name         string   `json:"name"`
+	// ID is the Meraki network ID, for example L_123456789012345678.
+	ID string `json:"id"`
+	// Name is the network's dashboard name; not guaranteed unique.
+	Name string `json:"name"`
+	// ProductTypes lists the product families in the network.
 	ProductTypes []string `json:"productTypes,omitempty"`
-	TimeZone     string   `json:"timeZone,omitempty"`
-	Tags         []string `json:"tags,omitempty"`
+	// TimeZone is the network's configured time zone.
+	TimeZone string `json:"timeZone,omitempty"`
+	// Tags are the network's dashboard tags.
+	Tags []string `json:"tags,omitempty"`
 }
 
 // Organization represents a Meraki organization
+//
+// Its JSON shape is that of GET /organizations. The nested fields are only
+// used by the access command's report.
 type Organization struct {
-	ID   string `json:"id"`
+	// ID is the Meraki organization ID.
+	ID string `json:"id"`
+	// Name is the organization's name; not guaranteed unique.
 	Name string `json:"name"`
-	URL  string `json:"url,omitempty"`
-	API  struct {
+	// URL is the organization's dashboard URL.
+	URL string `json:"url,omitempty"`
+	// API reports whether Dashboard API access is enabled.
+	API struct {
+		// Enabled is true when the organization allows API access.
 		Enabled bool `json:"enabled"`
 	} `json:"api"`
+	// Licensing describes the organization's licensing.
 	Licensing struct {
+		// Model is the licensing model, for example co-term or per-device.
 		Model string `json:"model"`
 	} `json:"licensing"`
+	// Cloud describes where the organization is hosted.
 	Cloud struct {
+		// Region is the hosting region.
 		Region struct {
+			// Name is the region name.
 			Name string `json:"name"`
+			// Host is the region's host, as the API reports it.
 			Host struct {
+				// Name is the host name.
 				Name string `json:"name"`
 			} `json:"host"`
 		} `json:"region"`
@@ -377,6 +590,12 @@ type Organization struct {
 }
 
 // getOrganizationNetworks fetches all networks in an organization
+//
+// Parameters:
+//   - organizationID: the organization whose networks to list.
+//
+// Returns the networks from GET /organizations/{id}/networks (first page
+// only), or the request or decode error.
 func (c *Client) getOrganizationNetworks(organizationID string) ([]Network, error) {
 	endpoint := fmt.Sprintf("/organizations/%s/networks", organizationID)
 
@@ -395,6 +614,17 @@ func (c *Client) getOrganizationNetworks(organizationID string) ([]Network, erro
 }
 
 // getNetworkRoutes fetches all routes for a specific network from multiple sources
+//
+// It concatenates, in order: appliance static routes, site-to-site VPN
+// subnets, appliance VLAN subnets, switch L3 interfaces and static routes,
+// and switch-stack routes. A source that fails is logged and skipped,
+// because a network rarely has all five.
+//
+// Parameters:
+//   - networkID: the network to read.
+//
+// Returns the combined routes (nil if none). The error result is always
+// nil today; it is kept so callers handle a future hard failure.
 func (c *Client) getNetworkRoutes(networkID string) ([]Route, error) {
 	var allRoutes []Route
 
@@ -452,6 +682,12 @@ func (c *Client) getNetworkRoutes(networkID string) ([]Route, error) {
 }
 
 // getNetworkStaticRoutes fetches static routes for a specific network
+//
+// Parameters:
+//   - networkID: the network to read.
+//
+// Returns the routes from GET /networks/{id}/appliance/staticRoutes, with
+// unnamed routes labeled "Static Route N", or the request or decode error.
 func (c *Client) getNetworkStaticRoutes(networkID string) ([]Route, error) {
 	endpoint := fmt.Sprintf("/networks/%s/appliance/staticRoutes", networkID)
 
@@ -477,6 +713,15 @@ func (c *Client) getNetworkStaticRoutes(networkID string) ([]Route, error) {
 }
 
 // getNetworkVPNRoutes fetches VPN routes for a specific network
+//
+// Each local subnet that site-to-site VPN advertises (useVpn true) becomes
+// a synthesized enabled route with ID "vpn-<index>" and no gateway.
+//
+// Parameters:
+//   - networkID: the network to read.
+//
+// Returns the synthesized routes. Request and decode failures are treated
+// as "no VPN configured" and return an empty slice with a nil error.
 func (c *Client) getNetworkVPNRoutes(networkID string) ([]Route, error) {
 	// Try to fetch site-to-site VPN routes
 	endpoint := fmt.Sprintf("/networks/%s/appliance/vpn/siteToSiteVpn", networkID)
@@ -517,6 +762,15 @@ func (c *Client) getNetworkVPNRoutes(networkID string) ([]Route, error) {
 }
 
 // getNetworkVLANRoutes fetches VLAN/L3 interface routes (directly connected subnets)
+//
+// Each appliance VLAN with a subnet becomes a route with ID "vlan-<id>"
+// whose gateway is the appliance's address on that VLAN.
+//
+// Parameters:
+//   - networkID: the network to read.
+//
+// Returns the synthesized routes. Request and decode failures are treated
+// as "no VLANs" and return an empty slice with a nil error.
 func (c *Client) getNetworkVLANRoutes(networkID string) ([]Route, error) {
 	endpoint := fmt.Sprintf("/networks/%s/appliance/vlans", networkID)
 
@@ -557,6 +811,15 @@ func (c *Client) getNetworkVLANRoutes(networkID string) ([]Route, error) {
 }
 
 // getNetworkSwitchRoutes attempts to fetch switch routing information
+//
+// It combines [Client.getNetworkSwitchInterfaces] and
+// [Client.getNetworkSwitchStaticRoutes] for a network's L3 switches.
+//
+// Parameters:
+//   - networkID: the network to read.
+//
+// Returns the combined routes; the error result is always nil because both
+// helpers swallow their own failures.
 func (c *Client) getNetworkSwitchRoutes(networkID string) ([]Route, error) {
 	// First try to get switch routing interfaces
 	switchInterfaces, err := c.getNetworkSwitchInterfaces(networkID)
@@ -580,6 +843,15 @@ func (c *Client) getNetworkSwitchRoutes(networkID string) ([]Route, error) {
 }
 
 // getNetworkSwitchInterfaces attempts to fetch switch Layer 3 interfaces
+//
+// Each interface with a subnet becomes a route with ID
+// "switch-iface-<interfaceId>" whose gateway is the interface address.
+//
+// Parameters:
+//   - networkID: the network to read.
+//
+// Returns the synthesized routes, or an empty slice and nil error on any
+// request or decode failure.
 func (c *Client) getNetworkSwitchInterfaces(networkID string) ([]Route, error) {
 	endpoint := fmt.Sprintf("/networks/%s/switch/routing/interfaces", networkID)
 
@@ -618,6 +890,13 @@ func (c *Client) getNetworkSwitchInterfaces(networkID string) ([]Route, error) {
 }
 
 // getNetworkSwitchStaticRoutes attempts to fetch switch static routes
+//
+// Parameters:
+//   - networkID: the network to read.
+//
+// Returns the routes from GET /networks/{id}/switch/routing/staticRoutes,
+// unnamed ones labeled "Switch Static Route N", or an empty slice and nil
+// error on any request or decode failure.
 func (c *Client) getNetworkSwitchStaticRoutes(networkID string) ([]Route, error) {
 	endpoint := fmt.Sprintf("/networks/%s/switch/routing/staticRoutes", networkID)
 
@@ -643,6 +922,15 @@ func (c *Client) getNetworkSwitchStaticRoutes(networkID string) ([]Route, error)
 }
 
 // getNetworkSwitchStackRoutes attempts to fetch routing information from switch stacks
+//
+// For every stack in the network it collects routing interfaces, static
+// routes and DHCP relay servers.
+//
+// Parameters:
+//   - networkID: the network to read.
+//
+// Returns the combined routes; failures for a stack or source are logged
+// at debug level and skipped, so the error result is always nil.
 func (c *Client) getNetworkSwitchStackRoutes(networkID string) ([]Route, error) {
 	// First get all switch stacks in the network
 	stacks, err := c.getNetworkSwitchStacks(networkID)
@@ -684,12 +972,22 @@ func (c *Client) getNetworkSwitchStackRoutes(networkID string) ([]Route, error) 
 }
 
 // SwitchStack represents a switch stack
+//
+// Its JSON shape is that of GET /networks/{networkId}/switch/stacks.
 type SwitchStack struct {
-	ID   string `json:"id"`
+	// ID is the switch stack ID.
+	ID string `json:"id"`
+	// Name is the switch stack name.
 	Name string `json:"name"`
 }
 
 // getNetworkSwitchStacks gets all switch stacks in a network
+//
+// Parameters:
+//   - networkID: the network to read.
+//
+// Returns the stacks, or an empty slice and nil error on any request or
+// decode failure (most networks have no stacks).
 func (c *Client) getNetworkSwitchStacks(networkID string) ([]SwitchStack, error) {
 	endpoint := fmt.Sprintf("/networks/%s/switch/stacks", networkID)
 
@@ -708,6 +1006,16 @@ func (c *Client) getNetworkSwitchStacks(networkID string) ([]SwitchStack, error)
 }
 
 // getSwitchStackRoutingInterfaces gets routing interfaces for a specific switch stack
+//
+// Each interface with a subnet becomes a route with ID
+// "stack-<stackId>-iface-<interfaceId>".
+//
+// Parameters:
+//   - networkID: the network that owns the stack.
+//   - stackID: the switch stack to read.
+//
+// Returns the synthesized routes, or an empty slice and nil error on any
+// request or decode failure.
 func (c *Client) getSwitchStackRoutingInterfaces(networkID, stackID string) ([]Route, error) {
 	endpoint := fmt.Sprintf("/networks/%s/switch/stacks/%s/routing/interfaces", networkID, stackID)
 
@@ -746,6 +1054,16 @@ func (c *Client) getSwitchStackRoutingInterfaces(networkID, stackID string) ([]R
 }
 
 // getSwitchStackStaticRoutes gets static routes for a specific switch stack
+//
+// The stack endpoint has no "enabled" field, so Enabled is taken from
+// preferOverOspfRoutesEnabled as a stand-in (see the comment in the body).
+//
+// Parameters:
+//   - networkID: the network that owns the stack.
+//   - stackID: the switch stack to read.
+//
+// Returns the routes, or an empty slice and nil error on any request or
+// decode failure.
 func (c *Client) getSwitchStackStaticRoutes(networkID, stackID string) ([]Route, error) {
 	endpoint := fmt.Sprintf("/networks/%s/switch/stacks/%s/routing/staticRoutes", networkID, stackID)
 
@@ -789,6 +1107,17 @@ func (c *Client) getSwitchStackStaticRoutes(networkID, stackID string) ([]Route,
 }
 
 // getSwitchStackDHCPRoutes gets DHCP subnet information for a specific switch stack
+//
+// Only the DHCP relay server addresses are turned into output: each one
+// becomes a synthesized 0.0.0.0/0 "route" whose gateway is the relay
+// server. DHCP options and reserved ranges are decoded but not used.
+//
+// Parameters:
+//   - networkID: the network that owns the stack.
+//   - stackID: the switch stack to read.
+//
+// Returns the synthesized routes, or an empty slice and nil error on any
+// request or decode failure.
 func (c *Client) getSwitchStackDHCPRoutes(networkID, stackID string) ([]Route, error) {
 	endpoint := fmt.Sprintf("/networks/%s/switch/stacks/%s/routing/dhcp", networkID, stackID)
 
@@ -835,6 +1164,9 @@ func (c *Client) getSwitchStackDHCPRoutes(networkID, stackID string) ([]Route, e
 }
 
 // GetOrganizations fetches all organizations accessible with the API key
+//
+// Returns the organizations from GET /organizations, or the request or
+// decode error.
 func (c *Client) GetOrganizations() ([]Organization, error) {
 	resp, err := c.makeRequest("GET", "/organizations")
 	if err != nil {
@@ -851,11 +1183,22 @@ func (c *Client) GetOrganizations() ([]Organization, error) {
 }
 
 // GetOrganizationNetworks fetches all networks in an organization (public method)
+//
+// Parameters:
+//   - organizationID: the organization whose networks to list.
+//
+// Returns the networks, or the request or decode error.
 func (c *Client) GetOrganizationNetworks(organizationID string) ([]Network, error) {
 	return c.getOrganizationNetworks(organizationID)
 }
 
 // getOrganizationDeviceStatuses fetches device statuses for all devices in an organization
+//
+// Parameters:
+//   - organizationID: the organization to read.
+//
+// Returns the statuses from GET /organizations/{id}/devices/statuses
+// (first page only), or the request or decode error.
 func (c *Client) getOrganizationDeviceStatuses(organizationID string) ([]DeviceStatus, error) {
 	endpoint := fmt.Sprintf("/organizations/%s/devices/statuses", organizationID)
 
@@ -875,6 +1218,13 @@ func (c *Client) getOrganizationDeviceStatuses(organizationID string) ([]DeviceS
 }
 
 // GetAllNetworkRoutes fetches routes for all networks in an organization
+//
+// Parameters:
+//   - organizationID: the organization to read.
+//
+// Returns one [NetworkRoutes] per network, in API order; a network whose
+// routes fail is still included with an empty route list. Returns an error
+// only if the network list cannot be read.
 func (c *Client) GetAllNetworkRoutes(organizationID string) ([]NetworkRoutes, error) {
 	// Get all networks in the organization
 	networks, err := c.getOrganizationNetworks(organizationID)
@@ -910,6 +1260,16 @@ func (c *Client) GetAllNetworkRoutes(organizationID string) ([]NetworkRoutes, er
 }
 
 // ResolveNetworkID resolves a network name or ID to a network ID within an organization
+//
+// An exact ID match wins; otherwise the name is matched case-insensitively
+// and must be unique, so users can type the name they see in the dashboard.
+//
+// Parameters:
+//   - organizationID: the organization to search.
+//   - networkIdentifier: a network ID or name. Empty returns "" and nil.
+//
+// Returns the network ID, or an error that lists the available networks
+// (no match) or the candidate IDs (several networks share the name).
 func (c *Client) ResolveNetworkID(organizationID, networkIdentifier string) (string, error) {
 	if networkIdentifier == "" {
 		return "", nil
@@ -963,6 +1323,16 @@ func (c *Client) ResolveNetworkID(organizationID, networkIdentifier string) (str
 }
 
 // ResolveOrganizationID resolves an organization name or ID to an organization ID
+//
+// An exact ID match wins; otherwise the name is matched case-insensitively
+// and must be unique.
+//
+// Parameters:
+//   - organizationIdentifier: an organization ID or name. Empty returns ""
+//     and nil.
+//
+// Returns the organization ID, or an error that lists the available
+// organizations (no match) or the duplicates (several share the name).
 func (c *Client) ResolveOrganizationID(organizationIdentifier string) (string, error) {
 	if organizationIdentifier == "" {
 		return "", nil
@@ -1017,6 +1387,12 @@ func (c *Client) ResolveOrganizationID(organizationIdentifier string) (string, e
 }
 
 // GetLicenses fetches license information for the specified organization
+//
+// Parameters:
+//   - organizationID: the organization to read.
+//
+// Returns the licenses from GET /organizations/{id}/licenses, or the
+// request or decode error.
 func (c *Client) GetLicenses(organizationID string) ([]License, error) {
 	endpoint := fmt.Sprintf("/organizations/%s/licenses", organizationID)
 
@@ -1035,6 +1411,16 @@ func (c *Client) GetLicenses(organizationID string) ([]License, error) {
 }
 
 // GetAllNetworkLicenses fetches licenses for all networks in an organization
+//
+// Nothing in the program calls it today.
+//
+// Parameters:
+//   - organizationID: the organization to read.
+//
+// Returns one [NetworkLicenses] per network: the licenses assigned to that
+// network plus every organization-wide license, so org-wide licenses are
+// repeated under every network. If the license list fails it is logged and
+// treated as empty. Returns an error only if the network list fails.
 func (c *Client) GetAllNetworkLicenses(organizationID string) ([]NetworkLicenses, error) {
 	// Get all networks in the organization
 	networks, err := c.getOrganizationNetworks(organizationID)
@@ -1076,6 +1462,15 @@ func (c *Client) GetAllNetworkLicenses(organizationID string) ([]NetworkLicenses
 }
 
 // GetDevices fetches device information for the specified organization and network
+//
+// Parameters:
+//   - organizationID: the organization to search.
+//   - networkIdentifier: a network ID or name; empty means every network in
+//     the organization, concatenated.
+//
+// Returns the devices (never nil), or an error if the network cannot be
+// resolved or listed. When every network is read, a network whose devices
+// fail is logged and skipped.
 func (c *Client) GetDevices(organizationID, networkIdentifier string) ([]Device, error) {
 	devices := make([]Device, 0) // Initialize as empty slice instead of nil slice
 
@@ -1117,6 +1512,15 @@ func (c *Client) GetDevices(organizationID, networkIdentifier string) ([]Device,
 }
 
 // GetDownDevices fetches devices that are currently down/offline
+//
+// It filters [Client.GetDevices] with [isDeviceDown], using the Status
+// field of the network devices response as-is.
+//
+// Parameters:
+//   - organizationID: the organization to search.
+//   - networkIdentifier: a network ID or name; empty means every network.
+//
+// Returns the down devices (never nil), or GetDevices' error.
 func (c *Client) GetDownDevices(organizationID, networkIdentifier string) ([]Device, error) {
 	// Get all devices first
 	allDevices, err := c.GetDevices(organizationID, networkIdentifier)
@@ -1139,6 +1543,17 @@ func (c *Client) GetDownDevices(organizationID, networkIdentifier string) ([]Dev
 }
 
 // GetAlertingDevices fetches devices that are currently alerting
+//
+// Device status is taken from the organization device-statuses endpoint and
+// joined on serial, because the network devices response does not reliably
+// carry it. If that endpoint fails, it falls back to whatever Status the
+// devices response had.
+//
+// Parameters:
+//   - organizationID: the organization to search.
+//   - networkIdentifier: a network ID or name; empty means every network.
+//
+// Returns the alerting devices (never nil), or GetDevices' error.
 func (c *Client) GetAlertingDevices(organizationID, networkIdentifier string) ([]Device, error) {
 	// Get all devices first
 	allDevices, err := c.GetDevices(organizationID, networkIdentifier)
@@ -1188,6 +1603,12 @@ func (c *Client) GetAlertingDevices(organizationID, networkIdentifier string) ([
 }
 
 // getNetworkDevices fetches all devices in a specific network
+//
+// Parameters:
+//   - networkID: the network to read.
+//
+// Returns the devices from GET /networks/{id}/devices, or the request or
+// decode error.
 func (c *Client) getNetworkDevices(networkID string) ([]Device, error) {
 	endpoint := fmt.Sprintf("/networks/%s/devices", networkID)
 
@@ -1206,6 +1627,15 @@ func (c *Client) getNetworkDevices(networkID string) ([]Device, error) {
 }
 
 // GetAllNetworkDevices fetches devices for all networks in an organization
+//
+// Nothing in the program calls it today.
+//
+// Parameters:
+//   - organizationID: the organization to read.
+//
+// Returns one [NetworkDevices] per network; a network whose devices fail
+// is included with an empty list. Returns an error only if the network
+// list fails.
 func (c *Client) GetAllNetworkDevices(organizationID string) ([]NetworkDevices, error) {
 	// Get all networks in the organization
 	networks, err := c.getOrganizationNetworks(organizationID)
@@ -1241,6 +1671,13 @@ func (c *Client) GetAllNetworkDevices(organizationID string) ([]NetworkDevices, 
 }
 
 // isDeviceDown determines if a device is considered down based on its status
+//
+// Parameters:
+//   - status: a Meraki device status, compared case-insensitively.
+//
+// Returns true for offline, alerting, dormant, down, unreachable and
+// disconnected. Note that "alerting" counts as down, so the down command's
+// output includes every alerting device.
 func isDeviceDown(status string) bool {
 	downStatuses := []string{
 		"offline",
@@ -1262,6 +1699,11 @@ func isDeviceDown(status string) bool {
 }
 
 // isDeviceAlerting determines if a device is considered alerting based on its status
+//
+// Parameters:
+//   - status: a Meraki device status, compared case-insensitively.
+//
+// Returns true only for "alerting".
 func isDeviceAlerting(status string) bool {
 	alertingStatuses := []string{
 		"alerting",

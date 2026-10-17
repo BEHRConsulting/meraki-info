@@ -8,6 +8,8 @@ import (
 	"meraki-info/internal/meraki"
 )
 
+// TestDeviceWithNetworkOrganizationID checks that consolidated device output
+// includes the organization name and ID and the network name and ID.
 func TestDeviceWithNetworkOrganizationID(t *testing.T) {
 	device := meraki.DeviceWithNetwork{
 		Device: meraki.Device{
@@ -50,6 +52,8 @@ func TestDeviceWithNetworkOrganizationID(t *testing.T) {
 	}
 }
 
+// TestLicenseWithNetworkOrganizationID checks that consolidated license
+// output includes the organization name and ID.
 func TestLicenseWithNetworkOrganizationID(t *testing.T) {
 	license := meraki.LicenseWithNetwork{
 		License: meraki.License{

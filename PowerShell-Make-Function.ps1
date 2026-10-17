@@ -1,12 +1,59 @@
-# PowerShell Make Function
-# Add this to your PowerShell profile to enable 'make' command globally
-# 
-# To add to profile:
-# 1. Run: notepad $PROFILE
-# 2. Add the content of this file to your profile
-# 3. Restart PowerShell or run: . $PROFILE
+<#
+.SYNOPSIS
+    PowerShell Make Function.
+
+.DESCRIPTION
+    Add this to your PowerShell profile to enable 'make' command globally
+
+    To add to profile:
+    1. Run: notepad $PROFILE
+    2. Add the content of this file to your profile
+    3. Restart PowerShell or run: . $PROFILE
+
+    Defines a global `make` function that runs .\make.ps1 when the current
+    directory has one, otherwise a real make.exe when there is a Makefile.
+
+.EXAMPLE
+    . .\PowerShell-Make-Function.ps1
+    make build
+
+.INPUTS
+    None.
+
+.OUTPUTS
+    None. Defines the make function in the current scope.
+
+.NOTES
+    The final Export-ModuleMember line only works when this file is loaded
+    as a module; when the file is dot-sourced or pasted into a profile,
+    PowerShell reports an error for that line, but the function is still
+    defined.
+#>
+
 
 function make {
+    <#
+    .SYNOPSIS
+        Runs a make target with make.ps1 or a real make.exe.
+
+    .DESCRIPTION
+        If .\make.ps1 exists in the current directory, runs it with the
+        target and arguments. Otherwise, if a Makefile exists, runs the
+        first make executable found on PATH or in common Git for Windows /
+        MSYS2 locations. Otherwise prints a warning.
+
+    .PARAMETER Target
+        The make target to run. Defaults to help.
+
+    .PARAMETER Arguments
+        Any further arguments, passed through unchanged.
+
+    .EXAMPLE
+        make build-all
+
+    .OUTPUTS
+        Whatever the invoked make writes.
+    #>
     param(
         [Parameter(Position=0)]
         [string]$Target = "help",

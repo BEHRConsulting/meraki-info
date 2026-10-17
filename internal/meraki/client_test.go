@@ -7,6 +7,7 @@ import (
 	"testing"
 )
 
+// TestNewClient checks that NewClient accepts a key and rejects an empty one.
 func TestNewClient(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -42,6 +43,8 @@ func TestNewClient(t *testing.T) {
 	}
 }
 
+// TestClient_makeRequest checks that requests carry the API-key and
+// Content-Type headers and that a 200 response is returned to the caller.
 func TestClient_makeRequest(t *testing.T) {
 	// Create a test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -75,6 +78,8 @@ func TestClient_makeRequest(t *testing.T) {
 	}
 }
 
+// TestClient_makeRequest_Error checks that a non-retryable status (401)
+// becomes an error.
 func TestClient_makeRequest_Error(t *testing.T) {
 	// Create a test server that returns an error
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -94,6 +99,8 @@ func TestClient_makeRequest_Error(t *testing.T) {
 	}
 }
 
+// TestClient_getOrganizationNetworks checks decoding of the organization
+// networks list from a test server.
 func TestClient_getOrganizationNetworks(t *testing.T) {
 	// Create a test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -126,6 +133,8 @@ func TestClient_getOrganizationNetworks(t *testing.T) {
 	}
 }
 
+// TestClient_getNetworkRoutes checks that routes from the several route
+// sources are fetched and combined for one network.
 func TestClient_getNetworkRoutes(t *testing.T) {
 	// Create a test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -216,6 +225,8 @@ func TestClient_getNetworkRoutes(t *testing.T) {
 	}
 }
 
+// TestClient_GetOrganizations checks decoding of the organizations list,
+// including the nested API, licensing and cloud fields.
 func TestClient_GetOrganizations(t *testing.T) {
 	// Create a test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -270,6 +281,8 @@ func TestClient_GetOrganizations(t *testing.T) {
 	}
 }
 
+// TestClient_ResolveNetworkID checks network resolution by ID, by
+// case-insensitive unique name, and the duplicate, missing and empty cases.
 func TestClient_ResolveNetworkID(t *testing.T) {
 	// Create a test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -378,6 +391,8 @@ func TestClient_ResolveNetworkID(t *testing.T) {
 	}
 }
 
+// TestClient_GetAllNetworkRoutes checks that every network in an
+// organization is returned with its routes.
 func TestClient_GetAllNetworkRoutes(t *testing.T) {
 	// Create a test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -523,6 +538,8 @@ func TestClient_GetAllNetworkRoutes(t *testing.T) {
 	}
 }
 
+// TestResolveOrganizationID checks organization resolution by ID, by
+// case-insensitive unique name, and the duplicate, missing and empty cases.
 func TestResolveOrganizationID(t *testing.T) {
 	// Mock server setup
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

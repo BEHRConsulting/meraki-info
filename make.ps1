@@ -1,6 +1,42 @@
-# PowerShell Make Wrapper for Meraki Info
-# This script provides make-like functionality for PowerShell environments
-# Usage: .\make.ps1 <target> [arguments]
+<#
+.SYNOPSIS
+    PowerShell Make Wrapper for Meraki Info.
+
+.DESCRIPTION
+    This script provides make-like functionality for PowerShell environments
+    Usage: .\make.ps1 <target> [arguments]
+
+    It mirrors the Makefile's targets for Windows users without make.
+    Single-platform amd64 builds are delegated to build.ps1; the ARM64
+    targets are built here directly.
+
+    Targets: help, build, build-windows, build-linux, build-linux-arm,
+    build-mac, build-mac-arm, build-all, test, test-v, coverage, clean, run,
+    access, install, deps.
+
+.PARAMETER Target
+    The target to run. Defaults to help. Case-insensitive.
+
+.PARAMETER Arguments
+    Extra arguments. Accepted for make-style invocation but not used by any
+    target.
+
+.EXAMPLE
+    .\make.ps1 build-all
+
+.EXAMPLE
+    $env:MERAKI_APIKEY = 'your-key'; .\make.ps1 access
+
+.INPUTS
+    None. You cannot pipe objects to this script.
+
+.OUTPUTS
+    None. Progress is written to the host.
+
+.NOTES
+    Exits 1 for an unknown target, and with the failing command's exit code
+    when a build, test or install fails.
+#>
 
 param(
     [Parameter(Position=0)]
@@ -20,6 +56,20 @@ $Colors = @{
 }
 
 function Write-MakeOutput {
+    <#
+    .SYNOPSIS
+        Writes a message to the host in one of the script's named colors.
+
+    .PARAMETER Message
+        The text to write.
+
+    .PARAMETER Color
+        A key of $Colors (Success, Warning, Error, Info, Target). Any other
+        value, including the default 'White', is written in white.
+
+    .OUTPUTS
+        None. Writes to the host.
+    #>
     param(
         [string]$Message,
         [string]$Color = 'White'
@@ -33,6 +83,13 @@ function Write-MakeOutput {
 }
 
 function Show-MakeHelp {
+    <#
+    .SYNOPSIS
+        Prints the list of targets, examples and environment variables.
+
+    .OUTPUTS
+        None. Writes to the host.
+    #>
     Write-MakeOutput "Meraki Info - PowerShell Make Wrapper" -Color Success
     Write-MakeOutput ""
     Write-MakeOutput "Available targets:" -Color Info
@@ -65,6 +122,23 @@ function Show-MakeHelp {
 }
 
 function Invoke-BuildTarget {
+    <#
+    .SYNOPSIS
+        Builds meraki-info for one platform or for all of them.
+
+    .DESCRIPTION
+        windows, linux and mac delegate to build.ps1 -Target; linux-arm and
+        mac-arm are built here with GOOS/GOARCH set; all builds every
+        platform. Any other value runs build.ps1 with its defaults (Windows).
+        After a delegated build, exits the script with that build's exit
+        code if it failed.
+
+    .PARAMETER Platform
+        windows (default), linux, linux-arm, mac, mac-arm or all.
+
+    .OUTPUTS
+        None. Writes progress to the host.
+    #>
     param([string]$Platform = "windows")
     
     Write-MakeOutput "🔨 Building for $Platform..." -Color Info
@@ -123,6 +197,19 @@ function Invoke-BuildTarget {
 }
 
 function Invoke-TestTarget {
+    <#
+    .SYNOPSIS
+        Runs the Go tests.
+
+    .PARAMETER Verbose
+        Run `go test -v ./...`.
+
+    .PARAMETER Coverage
+        Run `go test -cover ./...`. Takes precedence over -Verbose.
+
+    .OUTPUTS
+        None. Exits the script with the test exit code on failure.
+    #>
     param([switch]$Verbose, [switch]$Coverage)
     
     if ($Coverage) {
@@ -145,6 +232,13 @@ function Invoke-TestTarget {
 }
 
 function Invoke-CleanTarget {
+    <#
+    .SYNOPSIS
+        Deletes every built meraki-info binary and runs `go clean`.
+
+    .OUTPUTS
+        None. Writes each removed file to the host.
+    #>
     Write-MakeOutput "🧹 Cleaning build artifacts..." -Color Info
     
     # Remove built executables
@@ -170,6 +264,13 @@ function Invoke-CleanTarget {
 }
 
 function Invoke-RunTarget {
+    <#
+    .SYNOPSIS
+        Builds meraki-info and runs it with --help.
+
+    .OUTPUTS
+        The program's usage text. Exits 1 if no binary was produced.
+    #>
     Write-MakeOutput "🚀 Building and running..." -Color Info
     Invoke-BuildTarget
     if (Test-Path "meraki-info.exe") {
@@ -183,6 +284,17 @@ function Invoke-RunTarget {
 }
 
 function Invoke-AccessTarget {
+    <#
+    .SYNOPSIS
+        Builds meraki-info and runs its access command.
+
+    .DESCRIPTION
+        Requires MERAKI_APIKEY in the environment; exits 1 without it.
+        This makes a live call to the Meraki Dashboard API.
+
+    .OUTPUTS
+        The access report written by meraki-info.
+    #>
     if (-not $env:MERAKI_APIKEY) {
         Write-MakeOutput "❌ Error: MERAKI_APIKEY environment variable is required" -Color Error
         Write-MakeOutput "Usage: `$env:MERAKI_APIKEY='your-key'; .\make.ps1 access" -Color Info
@@ -203,6 +315,13 @@ function Invoke-AccessTarget {
 }
 
 function Invoke-InstallTarget {
+    <#
+    .SYNOPSIS
+        Runs `go install .` to install meraki-info into GOPATH/bin.
+
+    .OUTPUTS
+        None. Exits the script with go's exit code on failure.
+    #>
     Write-MakeOutput "📦 Installing to GOPATH/bin..." -Color Info
     go install .
     if ($LASTEXITCODE -eq 0) {
@@ -214,6 +333,16 @@ function Invoke-InstallTarget {
 }
 
 function Invoke-DepsTarget {
+    <#
+    .SYNOPSIS
+        Runs `go mod download` and `go mod tidy`.
+
+    .DESCRIPTION
+        Only the exit code of `go mod tidy` is checked.
+
+    .OUTPUTS
+        None. Exits the script with go's exit code on failure.
+    #>
     Write-MakeOutput "📋 Managing dependencies..." -Color Info
     go mod download
     go mod tidy

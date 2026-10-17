@@ -1,4 +1,16 @@
 // Package output handles different output formats for route data
+//
+// Despite that first line, it formats every record type the program
+// produces: routes, licenses and devices, each in a per-network form
+// ([]meraki.Route, []meraki.License, []meraki.Device) and a consolidated
+// form that also names the network and organization
+// ([]meraki.RouteWithNetwork, []meraki.LicenseWithNetwork,
+// []meraki.DeviceWithNetwork).
+//
+// [NewWriter] picks a [Writer] by format name. Text, XML and CSV are written
+// by hand per type; JSON uses encoding/json on whatever it is given. Note
+// that the XML and CSV writers fall back to indented JSON for the
+// consolidated license and device types, which have no XML/CSV layout yet.
 package output
 
 import (
@@ -14,107 +26,201 @@ import (
 )
 
 // Writer interface for different output formats
+//
+// data is one of the six slice types listed in the package comment; any
+// other type is an error for every writer except [JSONWriter].
 type Writer interface {
+	// WriteToFile creates (or truncates) filename and writes data to it.
 	WriteToFile(data interface{}, filename string) error
+	// WriteTo writes data to writer.
 	WriteTo(data interface{}, writer io.Writer) error
 }
 
 // TextWriter writes routes in plain text format
+//
+// It writes licenses and devices too, as human-readable numbered blocks
+// with a title and total count. It is the default format.
 type TextWriter struct{}
 
 // JSONWriter writes routes in JSON format
+//
+// It encodes any value as two-space-indented JSON, so it accepts every
+// record type, including ones the other writers reject.
 type JSONWriter struct{}
 
 // XMLWriter writes routes in XML format
+//
+// It converts routes, licenses and devices to the *XML mirror types in this
+// file and encodes them with an XML header. Consolidated licenses and
+// devices are written as JSON instead (see the package comment).
 type XMLWriter struct{}
 
 // CSVWriter writes routes in CSV format
+//
+// It writes a header row and one record per route, license or device.
+// Consolidated licenses and devices are written as JSON instead (see the
+// package comment).
 type CSVWriter struct{}
 
 // RoutesXML represents routes in XML format
+//
+// It is the <routes> document root for per-network route output.
 type RoutesXML struct {
-	XMLName xml.Name   `xml:"routes"`
-	Routes  []RouteXML `xml:"route"`
+	// XMLName sets the root element name.
+	XMLName xml.Name `xml:"routes"`
+	// Routes holds one <route> element per route.
+	Routes []RouteXML `xml:"route"`
 }
 
 // RoutesWithNetworkXML represents routes with network information in XML format
+//
+// It is the <routes> document root for consolidated route output.
 type RoutesWithNetworkXML struct {
-	XMLName xml.Name              `xml:"routes"`
-	Routes  []RouteWithNetworkXML `xml:"route"`
+	// XMLName sets the root element name.
+	XMLName xml.Name `xml:"routes"`
+	// Routes holds one <route> element per route.
+	Routes []RouteWithNetworkXML `xml:"route"`
 }
 
 // RouteXML represents a single route in XML format
+//
+// It mirrors [meraki.Route] with FixedIP flattened to a string, because
+// encoding/xml cannot encode the arbitrary JSON value Route holds there.
 type RouteXML struct {
-	ID          string `xml:"id,omitempty"`
-	Name        string `xml:"name,omitempty"`
-	Subnet      string `xml:"subnet"`
-	GatewayIP   string `xml:"gatewayIp"`
-	GatewayVlan int    `xml:"gatewayVlanId,omitempty"`
-	Enabled     bool   `xml:"enabled"`
-	FixedIP     string `xml:"fixedIpAssignments,omitempty"`
+	// ID mirrors [meraki.Route] field ID.
+	ID string `xml:"id,omitempty"`
+	// Name mirrors [meraki.Route] field Name.
+	Name string `xml:"name,omitempty"`
+	// Subnet mirrors [meraki.Route] field Subnet.
+	Subnet string `xml:"subnet"`
+	// GatewayIP mirrors [meraki.Route] field GatewayIP.
+	GatewayIP string `xml:"gatewayIp"`
+	// GatewayVlan mirrors [meraki.Route] field GatewayVlan.
+	GatewayVlan int `xml:"gatewayVlanId,omitempty"`
+	// Enabled mirrors [meraki.Route] field Enabled.
+	Enabled bool `xml:"enabled"`
+	// FixedIP mirrors [meraki.Route] field FixedIP, re-encoded as a JSON string.
+	FixedIP string `xml:"fixedIpAssignments,omitempty"`
 }
 
 // RouteWithNetworkXML represents a single route with network information in XML format
+//
+// It mirrors [meraki.RouteWithNetwork] flattened into one element, with
+// FixedIP as a string for the same reason as [RouteXML].
 type RouteWithNetworkXML struct {
-	ID           string `xml:"id,omitempty"`
-	Name         string `xml:"name,omitempty"`
-	Subnet       string `xml:"subnet"`
-	GatewayIP    string `xml:"gatewayIp"`
-	GatewayVlan  int    `xml:"gatewayVlanId,omitempty"`
-	Enabled      bool   `xml:"enabled"`
-	FixedIP      string `xml:"fixedIpAssignments,omitempty"`
-	NetworkID    string `xml:"networkId"`
-	NetworkName  string `xml:"networkName"`
+	// ID mirrors [meraki.RouteWithNetwork] field ID.
+	ID string `xml:"id,omitempty"`
+	// Name mirrors [meraki.RouteWithNetwork] field Name.
+	Name string `xml:"name,omitempty"`
+	// Subnet mirrors [meraki.RouteWithNetwork] field Subnet.
+	Subnet string `xml:"subnet"`
+	// GatewayIP mirrors [meraki.RouteWithNetwork] field GatewayIP.
+	GatewayIP string `xml:"gatewayIp"`
+	// GatewayVlan mirrors [meraki.RouteWithNetwork] field GatewayVlan.
+	GatewayVlan int `xml:"gatewayVlanId,omitempty"`
+	// Enabled mirrors [meraki.RouteWithNetwork] field Enabled.
+	Enabled bool `xml:"enabled"`
+	// FixedIP mirrors [meraki.RouteWithNetwork] field FixedIP, re-encoded as a JSON string.
+	FixedIP string `xml:"fixedIpAssignments,omitempty"`
+	// NetworkID mirrors [meraki.RouteWithNetwork] field NetworkID.
+	NetworkID string `xml:"networkId"`
+	// NetworkName mirrors [meraki.RouteWithNetwork] field NetworkName.
+	NetworkName string `xml:"networkName"`
+	// Organization mirrors [meraki.RouteWithNetwork] field Organization.
 	Organization string `xml:"organization"`
 }
 
 // LicensesXML represents licenses in XML format
+//
+// It is the <licenses> document root for per-organization license output.
 type LicensesXML struct {
-	XMLName  xml.Name     `xml:"licenses"`
+	// XMLName sets the root element name.
+	XMLName xml.Name `xml:"licenses"`
+	// Licenses holds one <license> element per license.
 	Licenses []LicenseXML `xml:"license"`
 }
 
 // LicenseXML represents a single license in XML format
+//
+// It mirrors [meraki.License] field for field with XML tags.
 type LicenseXML struct {
-	ID                string `xml:"id,omitempty"`
-	OrganizationID    string `xml:"organizationId,omitempty"`
-	DeviceSerial      string `xml:"deviceSerial,omitempty"`
-	NetworkID         string `xml:"networkId,omitempty"`
-	State             string `xml:"state,omitempty"`
-	Edition           string `xml:"edition,omitempty"`
-	Mode              string `xml:"mode,omitempty"`
-	ExpirationDate    string `xml:"expirationDate,omitempty"`
-	LicenseType       string `xml:"licenseType,omitempty"`
-	LicenseKey        string `xml:"licenseKey,omitempty"`
-	OrderNumber       string `xml:"orderNumber,omitempty"`
-	PermanentlyQueued bool   `xml:"permanentlyQueued,omitempty"`
-	DurationInDays    int    `xml:"durationInDays,omitempty"`
+	// ID mirrors [meraki.License] field ID.
+	ID string `xml:"id,omitempty"`
+	// OrganizationID mirrors [meraki.License] field OrganizationID.
+	OrganizationID string `xml:"organizationId,omitempty"`
+	// DeviceSerial mirrors [meraki.License] field DeviceSerial.
+	DeviceSerial string `xml:"deviceSerial,omitempty"`
+	// NetworkID mirrors [meraki.License] field NetworkID.
+	NetworkID string `xml:"networkId,omitempty"`
+	// State mirrors [meraki.License] field State.
+	State string `xml:"state,omitempty"`
+	// Edition mirrors [meraki.License] field Edition.
+	Edition string `xml:"edition,omitempty"`
+	// Mode mirrors [meraki.License] field Mode.
+	Mode string `xml:"mode,omitempty"`
+	// ExpirationDate mirrors [meraki.License] field ExpirationDate.
+	ExpirationDate string `xml:"expirationDate,omitempty"`
+	// LicenseType mirrors [meraki.License] field LicenseType.
+	LicenseType string `xml:"licenseType,omitempty"`
+	// LicenseKey mirrors [meraki.License] field LicenseKey.
+	LicenseKey string `xml:"licenseKey,omitempty"`
+	// OrderNumber mirrors [meraki.License] field OrderNumber.
+	OrderNumber string `xml:"orderNumber,omitempty"`
+	// PermanentlyQueued mirrors [meraki.License] field PermanentlyQueued.
+	PermanentlyQueued bool `xml:"permanentlyQueued,omitempty"`
+	// DurationInDays mirrors [meraki.License] field DurationInDays.
+	DurationInDays int `xml:"durationInDays,omitempty"`
 }
 
 // DevicesXML represents devices in XML format
+//
+// It is the <devices> document root for per-network device output.
 type DevicesXML struct {
-	XMLName xml.Name    `xml:"devices"`
+	// XMLName sets the root element name.
+	XMLName xml.Name `xml:"devices"`
+	// Devices holds one <device> element per device.
 	Devices []DeviceXML `xml:"device"`
 }
 
 // DeviceXML represents a single device in XML format
+//
+// It mirrors [meraki.Device] without BeaconIdParams.
 type DeviceXML struct {
-	Serial         string   `xml:"serial"`
-	Name           string   `xml:"name,omitempty"`
-	Model          string   `xml:"model"`
-	NetworkID      string   `xml:"networkId"`
-	MAC            string   `xml:"mac,omitempty"`
-	Status         string   `xml:"status"`
-	LastReportedAt string   `xml:"lastReportedAt,omitempty"`
-	ProductType    string   `xml:"productType,omitempty"`
-	Tags           []string `xml:"tags,omitempty"`
-	Address        string   `xml:"address,omitempty"`
-	Lat            float64  `xml:"lat,omitempty"`
-	Lng            float64  `xml:"lng,omitempty"`
-	Notes          string   `xml:"notes,omitempty"`
+	// Serial mirrors [meraki.Device] field Serial.
+	Serial string `xml:"serial"`
+	// Name mirrors [meraki.Device] field Name.
+	Name string `xml:"name,omitempty"`
+	// Model mirrors [meraki.Device] field Model.
+	Model string `xml:"model"`
+	// NetworkID mirrors [meraki.Device] field NetworkID.
+	NetworkID string `xml:"networkId"`
+	// MAC mirrors [meraki.Device] field MAC.
+	MAC string `xml:"mac,omitempty"`
+	// Status mirrors [meraki.Device] field Status.
+	Status string `xml:"status"`
+	// LastReportedAt mirrors [meraki.Device] field LastReportedAt.
+	LastReportedAt string `xml:"lastReportedAt,omitempty"`
+	// ProductType mirrors [meraki.Device] field ProductType.
+	ProductType string `xml:"productType,omitempty"`
+	// Tags mirrors [meraki.Device] field Tags.
+	Tags []string `xml:"tags,omitempty"`
+	// Address mirrors [meraki.Device] field Address.
+	Address string `xml:"address,omitempty"`
+	// Lat mirrors [meraki.Device] field Lat.
+	Lat float64 `xml:"lat,omitempty"`
+	// Lng mirrors [meraki.Device] field Lng.
+	Lng float64 `xml:"lng,omitempty"`
+	// Notes mirrors [meraki.Device] field Notes.
+	Notes string `xml:"notes,omitempty"`
 }
 
 // NewWriter creates a new writer based on the output type
+//
+// Parameters:
+//   - outputType: "json", "xml", "csv" or "text", case-insensitive.
+//
+// Returns the matching Writer. Any unrecognized value, including "",
+// returns a [TextWriter] rather than an error.
 func NewWriter(outputType string) Writer {
 	switch strings.ToLower(outputType) {
 	case "json":
@@ -129,6 +235,13 @@ func NewWriter(outputType string) Writer {
 }
 
 // WriteToFile writes data to a file in text format
+//
+// Parameters:
+//   - data: one of the supported record slices.
+//   - filename: the file to create or truncate.
+//
+// Returns an error if the file cannot be created or data is an unsupported
+// type. Write and close errors on the file are not reported.
 func (w *TextWriter) WriteToFile(data interface{}, filename string) error {
 	file, err := os.Create(filename)
 	if err != nil {
@@ -140,6 +253,13 @@ func (w *TextWriter) WriteToFile(data interface{}, filename string) error {
 }
 
 // WriteTo writes data to an io.Writer in text format
+//
+// Parameters:
+//   - data: one of the supported record slices.
+//   - writer: the destination.
+//
+// Returns an error only for an unsupported data type; write errors on
+// writer are not checked.
 func (w *TextWriter) WriteTo(data interface{}, writer io.Writer) error {
 	switch v := data.(type) {
 	case []meraki.Route:
@@ -160,6 +280,12 @@ func (w *TextWriter) WriteTo(data interface{}, writer io.Writer) error {
 }
 
 // writeRoutes writes routes to an io.Writer in text format
+//
+// Parameters:
+//   - routes: the routes to print.
+//   - writer: the destination.
+//
+// Returns nil; write errors on writer are not checked.
 func (w *TextWriter) writeRoutes(routes []meraki.Route, writer io.Writer) error {
 	// Write header
 	fmt.Fprintf(writer, "Meraki Route Tables\n")
@@ -183,6 +309,12 @@ func (w *TextWriter) writeRoutes(routes []meraki.Route, writer io.Writer) error 
 }
 
 // writeRoutesWithNetwork writes routes with network information to an io.Writer in text format
+//
+// Parameters:
+//   - routes: the consolidated routes to print.
+//   - writer: the destination.
+//
+// Returns nil; write errors on writer are not checked.
 func (w *TextWriter) writeRoutesWithNetwork(routes []meraki.RouteWithNetwork, writer io.Writer) error {
 	// Write header
 	fmt.Fprintf(writer, "Meraki Route Tables - Consolidated View\n")
@@ -209,6 +341,12 @@ func (w *TextWriter) writeRoutesWithNetwork(routes []meraki.RouteWithNetwork, wr
 }
 
 // writeLicenses writes licenses to an io.Writer in text format
+//
+// Parameters:
+//   - licenses: the licenses to print.
+//   - writer: the destination.
+//
+// Returns nil; write errors on writer are not checked.
 func (w *TextWriter) writeLicenses(licenses []meraki.License, writer io.Writer) error {
 	// Write header
 	fmt.Fprintf(writer, "Meraki License Information\n")
@@ -238,6 +376,13 @@ func (w *TextWriter) writeLicenses(licenses []meraki.License, writer io.Writer) 
 }
 
 // writeDevices writes devices to an io.Writer in text format
+//
+// Parameters:
+//   - devices: the devices to print. The title says "Down Devices" whatever
+//     command produced them, so alerting output is labeled "down" too.
+//   - writer: the destination.
+//
+// Returns nil; write errors on writer are not checked.
 func (w *TextWriter) writeDevices(devices []meraki.Device, writer io.Writer) error {
 	// Write header
 	fmt.Fprintf(writer, "Meraki Down Devices\n")
@@ -279,6 +424,12 @@ func (w *TextWriter) writeDevices(devices []meraki.Device, writer io.Writer) err
 }
 
 // writeLicensesWithNetwork writes licenses with network info to an io.Writer in text format
+//
+// Parameters:
+//   - licenses: the consolidated licenses to print.
+//   - writer: the destination.
+//
+// Returns nil; write errors on writer are not checked.
 func (w *TextWriter) writeLicensesWithNetwork(licenses []meraki.LicenseWithNetwork, writer io.Writer) error {
 	// Write header
 	fmt.Fprintf(writer, "Meraki License Information\n")
@@ -310,6 +461,12 @@ func (w *TextWriter) writeLicensesWithNetwork(licenses []meraki.LicenseWithNetwo
 }
 
 // writeDevicesWithNetwork writes devices with network info to an io.Writer in text format
+//
+// Parameters:
+//   - devices: the consolidated devices to print.
+//   - writer: the destination.
+//
+// Returns nil; write errors on writer are not checked.
 func (w *TextWriter) writeDevicesWithNetwork(devices []meraki.DeviceWithNetwork, writer io.Writer) error {
 	// Write header
 	fmt.Fprintf(writer, "Meraki Devices Information\n")
@@ -355,6 +512,13 @@ func (w *TextWriter) writeDevicesWithNetwork(devices []meraki.DeviceWithNetwork,
 }
 
 // WriteToFile writes data to a file in JSON format
+//
+// Parameters:
+//   - data: any JSON-encodable value.
+//   - filename: the file to create or truncate.
+//
+// Returns an error if the file cannot be created or encoding fails. The
+// file's close error is not reported.
 func (w *JSONWriter) WriteToFile(data interface{}, filename string) error {
 	file, err := os.Create(filename)
 	if err != nil {
@@ -366,6 +530,12 @@ func (w *JSONWriter) WriteToFile(data interface{}, filename string) error {
 }
 
 // WriteTo writes data to an io.Writer in JSON format
+//
+// Parameters:
+//   - data: any JSON-encodable value; a nil slice encodes as null.
+//   - writer: the destination.
+//
+// Returns an error if encoding or writing fails.
 func (w *JSONWriter) WriteTo(data interface{}, writer io.Writer) error {
 	encoder := json.NewEncoder(writer)
 	encoder.SetIndent("", "  ")
@@ -378,6 +548,13 @@ func (w *JSONWriter) WriteTo(data interface{}, writer io.Writer) error {
 }
 
 // WriteToFile writes data to a file in XML format
+//
+// Parameters:
+//   - data: one of the supported record slices.
+//   - filename: the file to create or truncate.
+//
+// Returns an error if the file cannot be created, data is unsupported, or
+// encoding fails. The file's close error is not reported.
 func (w *XMLWriter) WriteToFile(data interface{}, filename string) error {
 	file, err := os.Create(filename)
 	if err != nil {
@@ -389,6 +566,13 @@ func (w *XMLWriter) WriteToFile(data interface{}, filename string) error {
 }
 
 // WriteTo writes data to an io.Writer in XML format
+//
+// Parameters:
+//   - data: one of the supported record slices. []meraki.LicenseWithNetwork
+//     and []meraki.DeviceWithNetwork are written as indented JSON.
+//   - writer: the destination.
+//
+// Returns an error for an unsupported type or a failed encode.
 func (w *XMLWriter) WriteTo(data interface{}, writer io.Writer) error {
 	switch v := data.(type) {
 	case []meraki.Route:
@@ -415,6 +599,12 @@ func (w *XMLWriter) WriteTo(data interface{}, writer io.Writer) error {
 }
 
 // writeRoutesXML writes routes to an io.Writer in XML format
+//
+// Parameters:
+//   - routes: the routes to encode.
+//   - writer: the destination.
+//
+// Returns an error if XML encoding fails.
 func (w *XMLWriter) writeRoutesXML(routes []meraki.Route, writer io.Writer) error {
 	// Convert routes to XML-compatible format
 	xmlRoutes := make([]RouteXML, len(routes))
@@ -455,6 +645,12 @@ func (w *XMLWriter) writeRoutesXML(routes []meraki.Route, writer io.Writer) erro
 }
 
 // writeRoutesWithNetworkXML writes routes with network information to an io.Writer in XML format
+//
+// Parameters:
+//   - routes: the consolidated routes to encode.
+//   - writer: the destination.
+//
+// Returns an error if XML encoding fails.
 func (w *XMLWriter) writeRoutesWithNetworkXML(routes []meraki.RouteWithNetwork, writer io.Writer) error {
 	// Convert routes to XML-compatible format
 	xmlRoutes := make([]RouteWithNetworkXML, len(routes))
@@ -498,6 +694,12 @@ func (w *XMLWriter) writeRoutesWithNetworkXML(routes []meraki.RouteWithNetwork, 
 }
 
 // writeLicensesXML writes licenses to an io.Writer in XML format
+//
+// Parameters:
+//   - licenses: the licenses to encode.
+//   - writer: the destination.
+//
+// Returns an error if XML encoding fails.
 func (w *XMLWriter) writeLicensesXML(licenses []meraki.License, writer io.Writer) error {
 	// Convert licenses to XML-compatible format
 	xmlLicenses := make([]LicenseXML, len(licenses))
@@ -535,6 +737,12 @@ func (w *XMLWriter) writeLicensesXML(licenses []meraki.License, writer io.Writer
 }
 
 // writeDevicesXML writes devices to an io.Writer in XML format
+//
+// Parameters:
+//   - devices: the devices to encode.
+//   - writer: the destination.
+//
+// Returns an error if XML encoding fails.
 func (w *XMLWriter) writeDevicesXML(devices []meraki.Device, writer io.Writer) error {
 	// Convert devices to XML-compatible format
 	xmlDevices := make([]DeviceXML, len(devices))
@@ -572,6 +780,13 @@ func (w *XMLWriter) writeDevicesXML(devices []meraki.Device, writer io.Writer) e
 }
 
 // WriteToFile writes data to a file in CSV format
+//
+// Parameters:
+//   - data: one of the supported record slices.
+//   - filename: the file to create or truncate.
+//
+// Returns an error if the file cannot be created or data is unsupported.
+// The file's close error is not reported.
 func (w *CSVWriter) WriteToFile(data interface{}, filename string) error {
 	file, err := os.Create(filename)
 	if err != nil {
@@ -583,6 +798,13 @@ func (w *CSVWriter) WriteToFile(data interface{}, filename string) error {
 }
 
 // WriteTo writes data to an io.Writer in CSV format
+//
+// Parameters:
+//   - data: one of the supported record slices. []meraki.LicenseWithNetwork
+//     and []meraki.DeviceWithNetwork are written as indented JSON.
+//   - writer: the destination.
+//
+// Returns an error for an unsupported type or a failed record write.
 func (w *CSVWriter) WriteTo(data interface{}, writer io.Writer) error {
 	switch v := data.(type) {
 	case []meraki.Route:
@@ -609,6 +831,13 @@ func (w *CSVWriter) WriteTo(data interface{}, writer io.Writer) error {
 }
 
 // writeRoutesCSV writes routes to an io.Writer in CSV format
+//
+// Parameters:
+//   - routes: the routes to write.
+//   - writer: the destination.
+//
+// Returns an error if a header or record cannot be written. The final
+// flush is deferred and its error is not checked.
 func (w *CSVWriter) writeRoutesCSV(routes []meraki.Route, writer io.Writer) error {
 	csvWriter := csv.NewWriter(writer)
 	defer csvWriter.Flush()
@@ -639,6 +868,13 @@ func (w *CSVWriter) writeRoutesCSV(routes []meraki.Route, writer io.Writer) erro
 }
 
 // writeRoutesWithNetworkCSV writes routes with network information to an io.Writer in CSV format
+//
+// Parameters:
+//   - routes: the consolidated routes to write.
+//   - writer: the destination.
+//
+// Returns an error if a header or record cannot be written. The final
+// flush is deferred and its error is not checked.
 func (w *CSVWriter) writeRoutesWithNetworkCSV(routes []meraki.RouteWithNetwork, writer io.Writer) error {
 	csvWriter := csv.NewWriter(writer)
 	defer csvWriter.Flush()
@@ -672,6 +908,13 @@ func (w *CSVWriter) writeRoutesWithNetworkCSV(routes []meraki.RouteWithNetwork, 
 }
 
 // writeLicensesCSV writes licenses to an io.Writer in CSV format
+//
+// Parameters:
+//   - licenses: the licenses to write.
+//   - writer: the destination.
+//
+// Returns an error if a header or record cannot be written. The final
+// flush is deferred and its error is not checked.
 func (w *CSVWriter) writeLicensesCSV(licenses []meraki.License, writer io.Writer) error {
 	csvWriter := csv.NewWriter(writer)
 	defer csvWriter.Flush()
@@ -708,6 +951,13 @@ func (w *CSVWriter) writeLicensesCSV(licenses []meraki.License, writer io.Writer
 }
 
 // writeDevicesCSV writes devices to an io.Writer in CSV format
+//
+// Parameters:
+//   - devices: the devices to write; Tags are joined with ";".
+//   - writer: the destination.
+//
+// Returns an error if a header or record cannot be written. The final
+// flush is deferred and its error is not checked.
 func (w *CSVWriter) writeDevicesCSV(devices []meraki.Device, writer io.Writer) error {
 	csvWriter := csv.NewWriter(writer)
 	defer csvWriter.Flush()
