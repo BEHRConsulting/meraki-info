@@ -2,6 +2,39 @@
 
 Newest first. Each entry says **why**, not just what.
 
+## 2026-10-16 — Code review and safe fixes (overnight, branch `code-review`)
+
+**Why.** The documentation pass surfaced behaviour that contradicts the tool's own help text and
+README, and output paths that could fail silently. Kent was away, so the rule was: fix only what
+is clearly wrong and cannot change intended behaviour, and turn everything else into a question.
+Full write-up: `docs/code-review/2026-10-16.md`.
+
+**What was fixed.**
+
+- **`-org` was ignored by the consolidated `licenses`, `down` and `alerting` reports** (the
+  default path when `-network` is not given), so `-org X down` listed every organization's
+  devices. `route-tables` already honored it and the `-all` help text promises it. New helper
+  `organizationsToReport` + `main_test.go`.
+- **CSV flush and file-close errors were dropped**, so a full disk or broken pipe produced an
+  empty or truncated file with exit status 0. Test written first (`failingWriter`); it failed
+  for all four CSV record types before the fix.
+- **`access` printed usage examples that cannot work** (old binary name `meraki-routes-backup`,
+  a nonexistent `--access` flag, no command).
+- **`make access` / `.\make.ps1 access` always failed** ("only one command is allowed") because
+  they put `--apikey` after the command; they now rely on `MERAKI_APIKEY`, which also keeps the
+  key out of the process list.
+- **`PowerShell-Make-Function.ps1` errored on every dot-source** (`Export-ModuleMember` outside a
+  module); the line is removed.
+
+**What was deliberately not fixed**, because each changes behaviour or output format: `-all
+-output FILE` overwriting one file per network, JSON emitted for consolidated XML/CSV, no
+pagination, `Retry-After` ignored, whether `down` sees live statuses, CSV formula injection,
+dead OAuth2 code. Each is a numbered question in the review with a recommendation.
+
+**Verification.** `go build`, `go vet`, `gofmt -l`, `go test ./...` (83 passing, 0 failing,
+up from 77), `make build`; golangci-lint default errcheck findings 22 → 19; PSScriptAnalyzer
+unchanged at 147; nothing was run against the live API.
+
 ## 2026-10-16 — Documentation pass (overnight, branch `overnight-docs`)
 
 **Why.** CLAUDE.md §11 asks for complete documentation in each language's own standard, and the

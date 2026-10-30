@@ -132,9 +132,8 @@ argument, so `meraki-info access -apikey KEY` fails with "only one command is al
 **What `-all` does.** Without `-network`, every network is processed:
 
 - **To stdout** (no `-output`, or `-output -`): one consolidated report whose records carry the
-  network and organization. For `route-tables` it covers the `-org` organization, or every
-  organization when `-org` is not given. For `licenses`, `down` and `alerting` it currently
-  covers **every organization the key can see, even when `-org` is given**.
+  network and organization. It covers the `-org` organization, or every organization the key
+  can see when `-org` is not given.
 - **To a file** (`-output FILE`): each network is processed in turn and written to that same
   `FILE`, so the file ends up holding only the last network's results. (Timestamped per-network
   file names existed until commit `f376ff6` removed the `-output default` option.)
@@ -342,6 +341,7 @@ meraki-info/
 ├── AGENTS.md                   # Guide for contributors and AI agents
 ├── WORKLOG.md / VERSIONS.md    # What was done and why / what shipped
 ├── features.yaml               # Feature status manifest
+├── docs/code-review/           # Dated code reviews
 ├── go.mod
 ├── go.sum
 └── README.md

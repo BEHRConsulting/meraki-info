@@ -85,6 +85,9 @@ run: build
 	fi
 
 # Show access information (requires MERAKI_APIKEY environment variable)
+# meraki-info reads the key from the environment itself. Passing --apikey
+# after the command made the CLI reject it ("only one command is allowed");
+# not passing it at all also keeps the key out of the process list.
 access: build
 	@if [ -z "$$MERAKI_APIKEY" ]; then \
 		echo "Error: MERAKI_APIKEY environment variable is required"; \
@@ -92,9 +95,9 @@ access: build
 		exit 1; \
 	fi
 	@if [ -f "./meraki-info.exe" ]; then \
-		./meraki-info.exe access --apikey "$$MERAKI_APIKEY"; \
+		./meraki-info.exe access; \
 	elif [ -f "./meraki-info" ]; then \
-		./meraki-info access --apikey "$$MERAKI_APIKEY"; \
+		./meraki-info access; \
 	else \
 		echo "No executable found to run"; \
 		exit 1; \

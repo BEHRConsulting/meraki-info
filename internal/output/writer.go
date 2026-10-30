@@ -240,16 +240,24 @@ func NewWriter(outputType string) Writer {
 //   - data: one of the supported record slices.
 //   - filename: the file to create or truncate.
 //
-// Returns an error if the file cannot be created or data is an unsupported
-// type. Write and close errors on the file are not reported.
+// Returns an error if the file cannot be created or closed, or data is an
+// unsupported type. Write errors are not reported, because
+// [TextWriter.WriteTo] does not check them.
 func (w *TextWriter) WriteToFile(data interface{}, filename string) error {
 	file, err := os.Create(filename)
 	if err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
 	}
-	defer file.Close()
-
-	return w.WriteTo(data, file)
+	if err := w.WriteTo(data, file); err != nil {
+		_ = file.Close() // the write error is the one worth reporting
+		return err
+	}
+	// A failed Close can mean the data never reached the disk (for example
+	// on a network share), so it is reported rather than deferred away.
+	if err := file.Close(); err != nil {
+		return fmt.Errorf("failed to close file: %w", err)
+	}
+	return nil
 }
 
 // WriteTo writes data to an io.Writer in text format
@@ -517,16 +525,23 @@ func (w *TextWriter) writeDevicesWithNetwork(devices []meraki.DeviceWithNetwork,
 //   - data: any JSON-encodable value.
 //   - filename: the file to create or truncate.
 //
-// Returns an error if the file cannot be created or encoding fails. The
-// file's close error is not reported.
+// Returns an error if the file cannot be created or closed, or encoding
+// fails.
 func (w *JSONWriter) WriteToFile(data interface{}, filename string) error {
 	file, err := os.Create(filename)
 	if err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
 	}
-	defer file.Close()
-
-	return w.WriteTo(data, file)
+	if err := w.WriteTo(data, file); err != nil {
+		_ = file.Close() // the write error is the one worth reporting
+		return err
+	}
+	// A failed Close can mean the data never reached the disk (for example
+	// on a network share), so it is reported rather than deferred away.
+	if err := file.Close(); err != nil {
+		return fmt.Errorf("failed to close file: %w", err)
+	}
+	return nil
 }
 
 // WriteTo writes data to an io.Writer in JSON format
@@ -553,16 +568,23 @@ func (w *JSONWriter) WriteTo(data interface{}, writer io.Writer) error {
 //   - data: one of the supported record slices.
 //   - filename: the file to create or truncate.
 //
-// Returns an error if the file cannot be created, data is unsupported, or
-// encoding fails. The file's close error is not reported.
+// Returns an error if the file cannot be created or closed, data is
+// unsupported, or encoding fails.
 func (w *XMLWriter) WriteToFile(data interface{}, filename string) error {
 	file, err := os.Create(filename)
 	if err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
 	}
-	defer file.Close()
-
-	return w.WriteTo(data, file)
+	if err := w.WriteTo(data, file); err != nil {
+		_ = file.Close() // the write error is the one worth reporting
+		return err
+	}
+	// A failed Close can mean the data never reached the disk (for example
+	// on a network share), so it is reported rather than deferred away.
+	if err := file.Close(); err != nil {
+		return fmt.Errorf("failed to close file: %w", err)
+	}
+	return nil
 }
 
 // WriteTo writes data to an io.Writer in XML format
@@ -785,16 +807,23 @@ func (w *XMLWriter) writeDevicesXML(devices []meraki.Device, writer io.Writer) e
 //   - data: one of the supported record slices.
 //   - filename: the file to create or truncate.
 //
-// Returns an error if the file cannot be created or data is unsupported.
-// The file's close error is not reported.
+// Returns an error if the file cannot be created or closed, data is
+// unsupported, or writing fails.
 func (w *CSVWriter) WriteToFile(data interface{}, filename string) error {
 	file, err := os.Create(filename)
 	if err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
 	}
-	defer file.Close()
-
-	return w.WriteTo(data, file)
+	if err := w.WriteTo(data, file); err != nil {
+		_ = file.Close() // the write error is the one worth reporting
+		return err
+	}
+	// A failed Close can mean the data never reached the disk (for example
+	// on a network share), so it is reported rather than deferred away.
+	if err := file.Close(); err != nil {
+		return fmt.Errorf("failed to close file: %w", err)
+	}
+	return nil
 }
 
 // WriteTo writes data to an io.Writer in CSV format
@@ -836,11 +865,10 @@ func (w *CSVWriter) WriteTo(data interface{}, writer io.Writer) error {
 //   - routes: the routes to write.
 //   - writer: the destination.
 //
-// Returns an error if a header or record cannot be written. The final
-// flush is deferred and its error is not checked.
+// Returns an error if a header or record cannot be written, or if the
+// final flush to writer fails.
 func (w *CSVWriter) writeRoutesCSV(routes []meraki.Route, writer io.Writer) error {
 	csvWriter := csv.NewWriter(writer)
-	defer csvWriter.Flush()
 
 	// Write header
 	header := []string{"ID", "Name", "Subnet", "Gateway IP", "Gateway VLAN", "Enabled", "Fixed IP"}
@@ -864,6 +892,13 @@ func (w *CSVWriter) writeRoutesCSV(routes []meraki.Route, writer io.Writer) erro
 		}
 	}
 
+	// csv.Writer buffers; the final flush is where a short table actually
+	// reaches the destination, so its error must not be dropped.
+	csvWriter.Flush()
+	if err := csvWriter.Error(); err != nil {
+		return fmt.Errorf("failed to write CSV: %w", err)
+	}
+
 	return nil
 }
 
@@ -873,11 +908,10 @@ func (w *CSVWriter) writeRoutesCSV(routes []meraki.Route, writer io.Writer) erro
 //   - routes: the consolidated routes to write.
 //   - writer: the destination.
 //
-// Returns an error if a header or record cannot be written. The final
-// flush is deferred and its error is not checked.
+// Returns an error if a header or record cannot be written, or if the
+// final flush to writer fails.
 func (w *CSVWriter) writeRoutesWithNetworkCSV(routes []meraki.RouteWithNetwork, writer io.Writer) error {
 	csvWriter := csv.NewWriter(writer)
-	defer csvWriter.Flush()
 
 	// Write header
 	header := []string{"Organization", "Network ID", "Network Name", "ID", "Name", "Subnet", "Gateway IP", "Gateway VLAN", "Enabled", "Fixed IP"}
@@ -904,6 +938,13 @@ func (w *CSVWriter) writeRoutesWithNetworkCSV(routes []meraki.RouteWithNetwork, 
 		}
 	}
 
+	// csv.Writer buffers; the final flush is where a short table actually
+	// reaches the destination, so its error must not be dropped.
+	csvWriter.Flush()
+	if err := csvWriter.Error(); err != nil {
+		return fmt.Errorf("failed to write CSV: %w", err)
+	}
+
 	return nil
 }
 
@@ -913,11 +954,10 @@ func (w *CSVWriter) writeRoutesWithNetworkCSV(routes []meraki.RouteWithNetwork, 
 //   - licenses: the licenses to write.
 //   - writer: the destination.
 //
-// Returns an error if a header or record cannot be written. The final
-// flush is deferred and its error is not checked.
+// Returns an error if a header or record cannot be written, or if the
+// final flush to writer fails.
 func (w *CSVWriter) writeLicensesCSV(licenses []meraki.License, writer io.Writer) error {
 	csvWriter := csv.NewWriter(writer)
-	defer csvWriter.Flush()
 
 	// Write header
 	header := []string{"ID", "Organization ID", "Device Serial", "Network ID", "State", "Edition", "Mode", "License Type", "License Key", "Order Number", "Duration (Days)", "Expiration Date", "Permanently Queued"}
@@ -947,6 +987,13 @@ func (w *CSVWriter) writeLicensesCSV(licenses []meraki.License, writer io.Writer
 		}
 	}
 
+	// csv.Writer buffers; the final flush is where a short table actually
+	// reaches the destination, so its error must not be dropped.
+	csvWriter.Flush()
+	if err := csvWriter.Error(); err != nil {
+		return fmt.Errorf("failed to write CSV: %w", err)
+	}
+
 	return nil
 }
 
@@ -956,11 +1003,10 @@ func (w *CSVWriter) writeLicensesCSV(licenses []meraki.License, writer io.Writer
 //   - devices: the devices to write; Tags are joined with ";".
 //   - writer: the destination.
 //
-// Returns an error if a header or record cannot be written. The final
-// flush is deferred and its error is not checked.
+// Returns an error if a header or record cannot be written, or if the
+// final flush to writer fails.
 func (w *CSVWriter) writeDevicesCSV(devices []meraki.Device, writer io.Writer) error {
 	csvWriter := csv.NewWriter(writer)
-	defer csvWriter.Flush()
 
 	// Write header
 	header := []string{"Serial", "Name", "Model", "Network ID", "MAC", "Status", "Last Reported At", "Product Type", "Tags", "Address", "Latitude", "Longitude", "Notes"}
@@ -994,6 +1040,13 @@ func (w *CSVWriter) writeDevicesCSV(devices []meraki.Device, writer io.Writer) e
 		if err := csvWriter.Write(record); err != nil {
 			return fmt.Errorf("failed to write CSV record: %w", err)
 		}
+	}
+
+	// csv.Writer buffers; the final flush is where a short table actually
+	// reaches the destination, so its error must not be dropped.
+	csvWriter.Flush()
+	if err := csvWriter.Error(); err != nil {
+		return fmt.Errorf("failed to write CSV: %w", err)
 	}
 
 	return nil

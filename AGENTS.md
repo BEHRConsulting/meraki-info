@@ -71,6 +71,7 @@ Meraki organizations.
 | `internal/output/writer.go` | `Writer` implementations for text, JSON, XML, CSV, and the XML mirror structs. |
 | `*_test.go` | Unit tests. API tests run against `httptest` servers by setting the unexported `baseURL`; nothing calls the real API. `main` has no tests. |
 | `Makefile`, `make.ps1`, `make.bat`, `build.ps1`, `build-windows.ps1`, `build-windows.bat`, `PowerShell-Make-Function.ps1` | Build wrappers. `make.ps1` mirrors the Makefile for Windows. |
+| `docs/code-review/` | Dated code reviews with open questions for Kent. |
 | `README.md` | User documentation. `BUILD_SCRIPTS.md`, `MAKE_SUPPORT.md`, `ARM64_SUPPORT.md`, `MAKEFILE_UPDATES.md`, `RETRY_LOGIC.md` are older topic notes. |
 | `REQUIREMENTS.md`, `prompts-initial.md`, `prompts-claude.md`, `CODE_REVIEW.md` | The original AI-generation prompts and requirements (historical). |
 
@@ -135,7 +136,6 @@ exists, `FEAT-NNNN` ids — never renumber). Update them in the same change.
 
 - `-all` with `-output FILE` writes every network to the same file, so only the last network
   survives (the timestamped per-network names were removed in `f376ff6`).
-- Consolidated `licenses`, `down` and `alerting` ignore `-org` and cover every organization.
 - Consolidated `licenses`/`down`/`alerting` in `-format xml` or `csv` are emitted as JSON.
 - No pagination: list endpoints are read as one page.
 - `Retry-After` is not honored on 429.
@@ -143,3 +143,4 @@ exists, `FEAT-NNNN` ids — never renumber). Update them in the same change.
   organization device-statuses endpoint instead. Whether `down` sees real statuses has not been
   verified against the live API.
 - OAuth2 is not reachable from the CLI.
+- See `docs/code-review/2026-10-16.md` for the full list of findings and open questions.
